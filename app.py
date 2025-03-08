@@ -13,11 +13,26 @@ jira_service = JiraService()
 ai_service = AIService()
 agent_router = AgentRouter()
 
+@app.route('/')
+def index():
+    return jsonify({'message': 'DevOps Automation Service'})
+
+@app.route('/health')
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'services': {
+            'jira': True,
+            'ai': True,
+            'agent_router': True
+        }
+    })
+
 @app.route('/webhook/jira', methods=['POST'])
 def jira_webhook():
     try:
         payload = request.json
-        
+
         if not validate_jira_webhook(payload):
             return jsonify({'error': 'Invalid webhook payload'}), 400
 
@@ -26,7 +41,7 @@ def jira_webhook():
 
         # Parse description using AI service
         ai_response = ai_service.parse_description(description)
-        
+
         if not ai_response or not validate_ai_response(ai_response):
             error_message = "Unable to parse the task description. Please ensure it follows the required format."
             jira_service.add_comment(issue_key, error_message)
@@ -42,7 +57,7 @@ def jira_webhook():
         # Update Jira with results
         success_count = len(results['success'])
         failed_count = len(results['failed'])
-        
+
         status_message = f"Processed {success_count + failed_count} tasks:\n"
         status_message += f"- {success_count} tasks completed successfully\n"
         status_message += f"- {failed_count} tasks failed\n\n"
@@ -53,7 +68,7 @@ def jira_webhook():
                 status_message += f"- Task: {failed['task']}\n  Error: {failed['error']}\n"
 
         jira_service.add_comment(issue_key, status_message)
-        
+
         if failed_count == 0:
             jira_service.update_issue_status(issue_key, "Done")
         else:
@@ -69,6 +84,5 @@ def jira_webhook():
         logger.error(f"Error processing webhook: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    return jsonify({'status': 'healthy'})
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

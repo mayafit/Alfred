@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  devops_service:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=app.py
+      - PYTHONUNBUFFERED=1
+      - JIRA_URL=${JIRA_URL}
+      - JIRA_EMAIL=${JIRA_EMAIL}
+      - JIRA_API_TOKEN=${JIRA_API_TOKEN}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN}
+      - CI_AGENT_URL=${CI_AGENT_URL}
+      - HELM_AGENT_URL=${HELM_AGENT_URL}
+      - DEPLOY_AGENT_URL=${DEPLOY_AGENT_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=False
+    volumes:
+      - .:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
