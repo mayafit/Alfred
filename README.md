@@ -57,7 +57,7 @@ The service will be available at `http://localhost:5000`
 For local development without Docker:
 
 1. Ensure Python 3.11+ is installed
-2. Install dependencies using pip:
+2. Install required packages:
 ```bash
 pip install flask flask-sqlalchemy gunicorn jira openai requests psycopg2-binary
 ```
