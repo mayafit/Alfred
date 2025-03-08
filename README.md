@@ -12,10 +12,9 @@ This service automates DevOps tasks by:
 
 ## Prerequisites
 
-- Python 3.11+
+- Docker and Docker Compose (for deployment)
 - Jira account with API access
-- AI service endpoint
-- Docker and Docker Compose (for containerized deployment)
+- OpenAI API key
 
 ## Environment Variables
 
@@ -27,9 +26,8 @@ JIRA_URL=https://your-domain.atlassian.net
 JIRA_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-jira-api-token
 
-# AI Service Configuration
-AI_SERVICE_URL=http://ai-service-url
-AI_SERVICE_TOKEN=your-ai-service-token
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
 
 # Agent Configuration
 CI_AGENT_URL=http://ci-agent-url
@@ -41,25 +39,32 @@ SECRET_KEY=your-secret-key
 DEBUG=False
 ```
 
-## Installation
+## Installation and Deployment
 
-### Local Development
+### Using Docker (Recommended)
 
-1. Install dependencies:
-```bash
-pip install flask flask-sqlalchemy gunicorn jira requests
-```
-
-2. Run the application:
-```bash
-python main.py
-```
-
-### Docker Deployment
-
-1. Build and run using Docker Compose:
+1. Clone the repository
+2. Create and populate the `.env` file with your configuration
+3. Build and run using Docker Compose:
 ```bash
 docker-compose up -d
+```
+
+The service will be available at `http://localhost:5000`
+
+### Development Setup
+
+For local development without Docker:
+
+1. Ensure Python 3.11+ is installed
+2. Install dependencies using pip:
+```bash
+pip install flask flask-sqlalchemy gunicorn jira openai requests psycopg2-binary
+```
+3. Set up environment variables
+4. Run the application:
+```bash
+python main.py
 ```
 
 ## API Endpoints
@@ -110,6 +115,8 @@ The service provides detailed feedback through Jira comments when:
 - Description format is invalid
 - AI parsing fails
 - Task execution encounters errors
+
+System errors are logged for administrator review while user-friendly messages are posted to Jira.
 
 ## Contributing
 
