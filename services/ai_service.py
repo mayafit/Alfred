@@ -73,7 +73,8 @@ Example valid output:
                 logger.error(f"Failed to parse OpenAI response as JSON: {str(e)}")
                 return {
                     "status": "error",
-                    "message": "Failed to parse AI response format"
+                    "message": "Failed to parse AI response format",
+                    "system_error": True
                 }
 
             # Basic validation of response structure
@@ -81,7 +82,8 @@ Example valid output:
                 logger.error("Response missing required 'status' field")
                 return {
                     "status": "error",
-                    "message": "Invalid response format from AI service"
+                    "message": "Invalid response format from AI service",
+                    "system_error": True
                 }
 
             if result["status"] == "success":
@@ -89,20 +91,36 @@ Example valid output:
                     logger.error("Success response missing tasks list")
                     return {
                         "status": "error",
-                        "message": "Invalid tasks format in AI response"
+                        "message": "Invalid tasks format in AI response",
+                        "system_error": True
                     }
 
             return result
 
         except openai.AuthenticationError as e:
-            logger.error(f"OpenAI authentication error: {str(e)}")
+            error_msg = f"OpenAI authentication error: {str(e)}"
+            logger.error(error_msg)
             return {
                 "status": "error",
-                "message": "AI service authentication failed"
+                "message": "Alfred failed - See Alfred's log",
+                "system_error": True,
+                "log_details": error_msg
+            }
+        except (openai.APIError, openai.APIConnectionError, openai.RateLimitError) as e:
+            error_msg = f"OpenAI API error: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "status": "error",
+                "message": "Alfred failed - See Alfred's log",
+                "system_error": True,
+                "log_details": error_msg
             }
         except Exception as e:
-            logger.error(f"Error parsing description with AI: {str(e)}")
+            error_msg = f"Error parsing description with AI: {str(e)}"
+            logger.error(error_msg)
             return {
                 "status": "error",
-                "message": "Failed to parse the description. Please ensure it follows the required format."
+                "message": "Alfred failed - See Alfred's log",
+                "system_error": True,
+                "log_details": error_msg
             }

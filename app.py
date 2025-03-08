@@ -48,8 +48,18 @@ def jira_webhook():
             return jsonify({'status': 'error', 'message': error_message}), 400
 
         if ai_response['status'] == 'error':
-            jira_service.add_comment(issue_key, ai_response['message'])
-            return jsonify({'status': 'error', 'message': ai_response['message']}), 400
+            # Check if this is a system error
+            is_system_error = ai_response.get('system_error', False)
+            error_message = ai_response['message']
+
+            # Log additional details if available
+            if is_system_error and 'log_details' in ai_response:
+                logger.error(f"System error details for {issue_key}: {ai_response['log_details']}")
+
+            jira_service.add_comment(issue_key, error_message)
+            if is_system_error:
+                jira_service.update_issue_status(issue_key, "Failed")
+            return jsonify({'status': 'error', 'message': error_message}), 400
 
         # Process tasks with appropriate agents
         results = agent_router.process_tasks(ai_response['tasks'])
