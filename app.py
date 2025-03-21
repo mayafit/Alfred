@@ -28,6 +28,51 @@ def health_check():
         }
     })
 
+@app.route('/test/analyze', methods=['POST'])
+def test_analysis():
+    """
+    Test endpoint for AI task analysis without Jira integration
+    """
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Request must be JSON'}), 400
+
+        data = request.json
+        description = data.get('description')
+        if not description:
+            return jsonify({'error': 'Description is required'}), 400
+
+        # Parse description using AI service
+        ai_response = ai_service.parse_description(description)
+
+        if not ai_response or not validate_ai_response(ai_response):
+            error_message = "Unable to parse the task description. Please ensure it follows the required format."
+            return jsonify({'status': 'error', 'message': error_message}), 400
+
+        if ai_response['status'] == 'error':
+            # Check if this is a system error
+            is_system_error = ai_response.get('system_error', False)
+            error_message = ai_response['message']
+
+            # Log additional details if available
+            if is_system_error and 'log_details' in ai_response:
+                logger.error(f"System error details: {ai_response['log_details']}")
+
+            return jsonify({'status': 'error', 'message': error_message}), 400
+
+        # Process tasks with appropriate agents
+        results = agent_router.process_tasks(ai_response['tasks'])
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Tasks processed',
+            'results': results
+        })
+
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/webhook/jira', methods=['POST'])
 def jira_webhook():
     try:
