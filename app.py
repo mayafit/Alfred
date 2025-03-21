@@ -21,20 +21,19 @@ def index():
 @app.route('/health')
 def health_check():
     try:
-        # Test agent router health
-        ci_response = requests.get(f"{config.CI_AGENT_URL}/health", timeout=5)
-        helm_response = requests.get(f"{config.HELM_AGENT_URL}/health", timeout=5)
-        deploy_response = requests.get(f"{config.DEPLOY_AGENT_URL}/health", timeout=5)
+        # Check if the CI agent Blueprint routes are registered
+        ci_routes = [rule for rule in app.url_map.iter_rules() if rule.endpoint.startswith('ci_agent')]
 
         return jsonify({
             'status': 'healthy',
             'services': {
+                'main_app': True,
                 'jira': True,
                 'ai': True,
-                'agent_router': True,
-                'ci_agent': ci_response.status_code == 200,
-                'helm_agent': helm_response.status_code == 200,
-                'deploy_agent': deploy_response.status_code == 200
+                'ci_agent': len(ci_routes) > 0,
+                'routes': {
+                    'ci_agent': [str(rule) for rule in ci_routes]
+                }
             }
         })
     except Exception as e:
