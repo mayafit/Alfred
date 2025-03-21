@@ -169,4 +169,5 @@ def execute():
             repo_analyzer.cleanup(repo_path)
 
 if __name__ == '__main__':
+    # ALWAYS serve the CI agent on port 9001
     app.run(host='0.0.0.0', port=9001, debug=True)
