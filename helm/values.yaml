@@ -1,0 +1,122 @@
+# Global settings
+global:
+  environment: production
+  domain: devops-automation.local
+
+# Main application configuration
+mainApp:
+  name: devops-service
+  replicas: 2
+  image:
+    repository: devops-automation
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    - name: FLASK_APP
+      value: app.py
+    - name: PYTHONUNBUFFERED
+      value: "1"
+    - name: CI_AGENT_URL
+      value: "http://ci-agent:9001"
+    - name: HELM_AGENT_URL
+      value: "http://helm-agent:9002"
+    - name: DEPLOY_AGENT_URL
+      value: "http://deploy-agent:9003"
+    - name: LLAMA_SERVER_URL
+      value: "http://llama-server:11434"
+    - name: SECRET_KEY
+      value: "change-me-in-production"
+
+# Agent configurations
+agents:
+  ci:
+    name: ci-agent
+    port: 9001
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+  helm:
+    name: helm-agent
+    port: 9002
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+  deploy:
+    name: deploy-agent
+    port: 9003
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  host: postgresql
+  postgresqlUsername: devops
+  postgresqlPassword: devops123
+  postgresqlDatabase: devops_automation
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# Prometheus configuration (using subchart)
+prometheus:
+  server:
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+  alertmanager:
+    enabled: true
+    persistentVolume:
+      enabled: true
+      size: 5Gi
+
+# Grafana configuration (using subchart)
+grafana:
+  adminPassword: admin
+  persistence:
+    enabled: true
+    size: 5Gi
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server
+          access: proxy
+          isDefault: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards

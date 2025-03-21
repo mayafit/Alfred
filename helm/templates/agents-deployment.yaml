@@ -1,0 +1,39 @@
+{{- range $agent, $config := .Values.agents }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $config.name }}
+  labels:
+    app: {{ $config.name }}
+spec:
+  replicas: {{ $config.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $config.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $config.name }}
+    spec:
+      containers:
+        - name: {{ $config.name }}
+          image: "{{ $.Values.mainApp.image.repository }}-{{ $agent }}:{{ $.Values.mainApp.image.tag }}"
+          imagePullPolicy: {{ $.Values.mainApp.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $config.port }}
+          resources:
+            {{- toYaml $config.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $config.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ $config.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+{{- end }}

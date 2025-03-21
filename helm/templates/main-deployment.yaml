@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.mainApp.name }}
+  labels:
+    app: {{ .Values.mainApp.name }}
+spec:
+  replicas: {{ .Values.mainApp.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.mainApp.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.mainApp.name }}
+    spec:
+      initContainers:
+        - name: wait-for-postgresql
+          image: "{{ .Values.mainApp.image.repository }}:{{ .Values.mainApp.image.tag }}"
+          command: ['sh', '-c', 'until pg_isready -h {{ .Values.postgresql.host }} -p 5432; do echo waiting for database; sleep 2; done;']
+      containers:
+        - name: {{ .Values.mainApp.name }}
+          image: "{{ .Values.mainApp.image.repository }}:{{ .Values.mainApp.image.tag }}"
+          imagePullPolicy: {{ .Values.mainApp.image.pullPolicy }}
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.postgresql.postgresqlUsername }}:{{ .Values.postgresql.postgresqlPassword }}@{{ .Values.postgresql.host }}:5432/{{ .Values.postgresql.postgresqlDatabase }}"
+            - name: FLASK_APP
+              value: "app.py"
+            - name: FLASK_ENV
+              value: "production"
+            {{- range .Values.mainApp.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.mainApp.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
