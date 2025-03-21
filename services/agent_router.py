@@ -14,6 +14,22 @@ class AgentRouter:
             "Content-Type": "application/json"
         }
 
+    def validate_agent_response(self, response: Dict[str, Any]) -> bool:
+        """
+        Validates the response format from an agent
+        """
+        if not isinstance(response, dict):
+            return False
+
+        required_fields = ['status', 'message', 'details']
+        if not all(field in response for field in required_fields):
+            return False
+
+        if response['status'] not in ['success', 'error']:
+            return False
+
+        return True
+
     def route_task(self, agent_type: str, task_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Routes the task to appropriate AI agent
@@ -23,6 +39,9 @@ class AgentRouter:
             return None
 
         try:
+            logger.info(f"Routing task to {agent_type} agent")
+            logger.debug(f"Task data: {task_data}")
+
             response = requests.post(
                 f"{self.agent_urls[agent_type]}/execute",
                 headers=self.headers,
@@ -30,9 +49,19 @@ class AgentRouter:
                 timeout=30  # Add timeout to prevent hanging
             )
             response.raise_for_status()
-            return response.json()
+
+            result = response.json()
+            if not self.validate_agent_response(result):
+                logger.error(f"Invalid response format from {agent_type} agent")
+                return None
+
+            return result
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Error calling {agent_type} agent: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error with {agent_type} agent: {str(e)}")
             return None
 
     def process_tasks(self, tasks: list) -> Dict[str, Any]:
@@ -44,9 +73,12 @@ class AgentRouter:
             'failed': []
         }
 
+        logger.info(f"Processing {len(tasks)} tasks")
+
         for task in tasks:
             agent_type = task.get('type')
             if not agent_type:
+                logger.error("Task missing required 'type' field")
                 results['failed'].append({
                     'task': task,
                     'error': 'Missing agent type'
