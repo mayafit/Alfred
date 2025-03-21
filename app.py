@@ -1,5 +1,4 @@
-import os
-import sys
+import requests
 from flask import Flask, request, jsonify
 from services.jira_service import JiraService
 from services.ai_service import AIService
@@ -7,6 +6,7 @@ from services.agent_router import AgentRouter
 from utils.validators import validate_jira_webhook, validate_ai_response
 from utils.logger import logger
 import config
+import os
 from flask_sqlalchemy import SQLAlchemy
 from prometheus_flask_exporter import PrometheusMetrics
 from prometheus_client import Counter, Histogram
@@ -44,10 +44,7 @@ def create_app():
         return app
 
 app = create_app()
-
-# Register CI agent routes under /ci prefix
-from agents.ci_agent.app import app as ci_agent_app
-app.register_blueprint(ci_agent_app, url_prefix='/ci')
+app.secret_key = config.SECRET_KEY
 
 jira_service = JiraService()
 ai_service = AIService()
