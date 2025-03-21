@@ -5,8 +5,8 @@ JIRA_URL = os.getenv("JIRA_URL", "https://your-domain.atlassian.net")
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 
-# AI Service Configuration (OpenAI)
-AI_SERVICE_TOKEN = os.getenv("OPENAI_API_KEY")  # Using OpenAI API key
+# LLama Server Configuration
+LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://localhost:8080")
 
 # Agent Configuration
 CI_AGENT_URL = os.getenv("CI_AGENT_URL", "http://localhost:9001")
