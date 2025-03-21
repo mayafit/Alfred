@@ -32,7 +32,7 @@ def run_main_app():
     app.run(host='0.0.0.0', port=5000, debug=True)
 
 def run_ci_agent():
-    from agents.ci_agent.app import app
+    from ci_agent_server import app
     app.run(host='0.0.0.0', port=9001, debug=True)
 
 if __name__ == '__main__':
