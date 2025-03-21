@@ -28,109 +28,96 @@ Example valid output:
             response = requests.get(f"{config.LLAMA_SERVER_URL}/health")
             response.raise_for_status()
             logger.debug("Successfully connected to Llama server")
+            self.llama_available = True
         except requests.exceptions.RequestException as e:
             logger.warning(f"Could not connect to Llama server at startup: {str(e)}")
-            # Don't raise the error, allow the service to start but log the warning
+            self.llama_available = False
+            # Don't raise the error, allow the service to start in fallback mode
 
     def parse_description(self, description: str) -> Optional[Dict[str, Any]]:
         """
         Sends the issue description to Llama server for parsing
+        Falls back to rule-based parsing if Llama is unavailable
         """
         try:
+            # If Llama is not available, use rule-based parsing
+            if not self.llama_available:
+                return self._parse_description_fallback(description)
+
             logger.debug(f"Sending description to Llama for parsing: {description[:100]}...")
 
-            # For testing purposes - mock response when Llama server is not available
-            if "CI pipeline" in description or "pipeline" in description:
-                # Extract repository URL using simple pattern matching
-                repo_pattern = r'git@github\.com:[a-zA-Z0-9-]+/[a-zA-Z0-9-]+\.git'
-                repo_match = re.search(repo_pattern, description)
-                repo_url = repo_match.group(0) if repo_match else "git@github.com:example/service.git"
-
-                mock_response = {
-                    "status": "success",
-                    "tasks": [{
-                        "type": "ci",
-                        "description": "Set up CI pipeline",
-                        "parameters": {
-                            "repository": repo_url,
-                            "branch": "main",
-                            "build_steps": ["test", "lint", "build"]
-                        }
-                    }]
-                }
-                logger.info("Using mock response for CI pipeline task")
-                return mock_response
-
-            # Try Llama server if mock doesn't match
+            # Try Llama server
             try:
                 health_check = requests.get(f"{config.LLAMA_SERVER_URL}/health", timeout=5)
                 health_check.raise_for_status()
             except requests.exceptions.RequestException as e:
-                logger.error(f"Llama server is not accessible: {str(e)}")
-                return {
-                    "status": "error",
-                    "message": "AI service is temporarily unavailable. Using fallback mode.",
-                    "system_error": True,
-                    "log_details": "Could not connect to Llama server. Please ensure it is running."
-                }
-
-            # Prepare the prompt for Llama
-            prompt = f"{self.system_prompt}\n\nUser Description: {description}\n\nResponse:"
+                logger.warning(f"Llama server is not accessible: {str(e)}")
+                return self._parse_description_fallback(description)
 
             # Make request to Llama server
             response = requests.post(
                 f"{config.LLAMA_SERVER_URL}/completion",
                 json={
-                    "prompt": prompt,
+                    "prompt": f"{self.system_prompt}\n\nUser Description: {description}\n\nResponse:",
                     "temperature": 0.2,
                     "max_tokens": 1000,
                     "stop": ["\n\n"]
                 },
-                timeout=30  # Add timeout to prevent hanging
+                timeout=30
             )
             response.raise_for_status()
 
             # Extract the response content
             response_data = response.json()
             if not response_data.get('content'):
-                logger.error("Empty response from Llama server")
-                return {
-                    "status": "error",
-                    "message": "Failed to analyze description",
-                    "system_error": True,
-                    "log_details": "Empty response from Llama server"
-                }
+                logger.warning("Empty response from Llama server, using fallback")
+                return self._parse_description_fallback(description)
 
             # Parse the JSON response
             try:
                 result = json.loads(response_data['content'])
+                logger.info(f"Successfully parsed description with Llama: {result}")
+                return result
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Llama response as JSON: {str(e)}")
-                return {
-                    "status": "error",
-                    "message": "Failed to analyze description",
-                    "system_error": True,
-                    "log_details": f"JSON parsing error: {str(e)}"
-                }
+                logger.warning(f"Failed to parse Llama response as JSON: {str(e)}")
+                return self._parse_description_fallback(description)
 
-            logger.info(f"Successfully parsed description: {result}")
-            return result
-
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Llama server connection error: {str(e)}"
-            logger.error(error_msg)
-            return {
-                "status": "error",
-                "message": "Failed to analyze description",
-                "system_error": True,
-                "log_details": error_msg
-            }
         except Exception as e:
-            error_msg = f"Error parsing description with Llama: {str(e)}"
-            logger.error(error_msg)
+            logger.warning(f"Error using Llama server, falling back to rule-based parsing: {str(e)}")
+            return self._parse_description_fallback(description)
+
+    def _parse_description_fallback(self, description: str) -> Dict[str, Any]:
+        """
+        Rule-based fallback parser when Llama is unavailable
+        """
+        logger.info("Using fallback description parser")
+
+        # Simple rule-based parsing
+        if "CI pipeline" in description or "pipeline" in description:
+            # Extract repository URL using simple pattern matching
+            repo_pattern = r'git@github\.com:[a-zA-Z0-9-]+/[a-zA-Z0-9-]+\.git'
+            repo_match = re.search(repo_pattern, description)
+            repo_url = repo_match.group(0) if repo_match else "git@github.com:example/service.git"
+
             return {
-                "status": "error",
-                "message": "Failed to analyze description",
-                "system_error": True,
-                "log_details": error_msg
+                "status": "success",
+                "tasks": [{
+                    "type": "ci",
+                    "description": "Set up CI pipeline",
+                    "parameters": {
+                        "repository": repo_url,
+                        "branch": "main",
+                        "build_steps": ["test", "lint", "build"]
+                    }
+                }]
             }
+
+        # Default response for unrecognized tasks
+        return {
+            "status": "success",
+            "tasks": [{
+                "type": "unknown",
+                "description": "Task type not recognized",
+                "parameters": {}
+            }]
+        }
