@@ -52,13 +52,42 @@ def validate_ai_response(response: Dict[Any, Any]) -> bool:
                 return False
 
             valid_task_types = ['ci', 'helm', 'deploy']
+            required_task_fields = ['type', 'description', 'parameters']
+
             for task in response['tasks']:
                 if not isinstance(task, dict):
                     return False
-                if 'type' not in task or task['type'] not in valid_task_types:
+
+                # Validate required fields
+                if not all(field in task for field in required_task_fields):
                     return False
-                if 'description' not in task or 'parameters' not in task:
+
+                # Validate task type
+                if task['type'] not in valid_task_types:
                     return False
+
+                # Validate parameters based on task type
+                parameters = task['parameters']
+                if not isinstance(parameters, dict):
+                    return False
+
+                # Common parameter validation
+                if 'repository' not in parameters:
+                    return False
+
+                # Type-specific parameter validation
+                if task['type'] == 'ci':
+                    required_ci_params = ['branch', 'build_steps']
+                    if not all(param in parameters for param in required_ci_params):
+                        return False
+                elif task['type'] == 'helm':
+                    required_helm_params = ['service_ports', 'environment_variables']
+                    if not all(param in parameters for param in required_helm_params):
+                        return False
+                elif task['type'] == 'deploy':
+                    required_deploy_params = ['namespace']
+                    if not all(param in parameters for param in required_deploy_params):
+                        return False
 
         return True
     except Exception:

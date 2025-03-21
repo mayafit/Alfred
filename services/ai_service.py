@@ -128,6 +128,26 @@ Example valid output:
                         "log_details": "Invalid tasks format in Llama response"
                     }
 
+                # Additional validation for task types
+                valid_types = {"ci", "helm", "deploy"}
+                for task in result["tasks"]:
+                    if not isinstance(task, dict) or "type" not in task:
+                        logger.error("Invalid task format")
+                        return {
+                            "status": "error",
+                            "message": "Alfred failed - See Alfred's log",
+                            "system_error": True,
+                            "log_details": "Task missing required fields"
+                        }
+                    if task["type"] not in valid_types:
+                        logger.error(f"Invalid task type: {task['type']}")
+                        return {
+                            "status": "error",
+                            "message": "Alfred failed - See Alfred's log",
+                            "system_error": True,
+                            "log_details": f"Invalid task type: {task['type']}"
+                        }
+
             return result
 
         except requests.exceptions.RequestException as e:
