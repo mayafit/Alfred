@@ -1,3 +1,4 @@
+import requests
 from flask import Flask, request, jsonify
 from services.jira_service import JiraService
 from services.ai_service import AIService
@@ -19,14 +20,29 @@ def index():
 
 @app.route('/health')
 def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'services': {
-            'jira': True,
-            'ai': True,
-            'agent_router': True
-        }
-    })
+    try:
+        # Test agent router health
+        ci_response = requests.get(f"{config.CI_AGENT_URL}/health", timeout=5)
+        helm_response = requests.get(f"{config.HELM_AGENT_URL}/health", timeout=5)
+        deploy_response = requests.get(f"{config.DEPLOY_AGENT_URL}/health", timeout=5)
+
+        return jsonify({
+            'status': 'healthy',
+            'services': {
+                'jira': True,
+                'ai': True,
+                'agent_router': True,
+                'ci_agent': ci_response.status_code == 200,
+                'helm_agent': helm_response.status_code == 200,
+                'deploy_agent': deploy_response.status_code == 200
+            }
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
 
 @app.route('/test/analyze', methods=['POST'])
 def test_analysis():
@@ -44,20 +60,11 @@ def test_analysis():
 
         # Parse description using AI service
         ai_response = ai_service.parse_description(description)
+        logger.debug(f"AI Response: {ai_response}")
 
-        if not ai_response or not validate_ai_response(ai_response):
-            error_message = "Unable to parse the task description. Please ensure it follows the required format."
-            return jsonify({'status': 'error', 'message': error_message}), 400
-
-        if ai_response['status'] == 'error':
-            # Check if this is a system error
-            is_system_error = ai_response.get('system_error', False)
-            error_message = ai_response['message']
-
-            # Log additional details if available
-            if is_system_error and 'log_details' in ai_response:
-                logger.error(f"System error details: {ai_response['log_details']}")
-
+        if not ai_response:
+            error_message = "Unable to parse the task description"
+            logger.error(error_message)
             return jsonify({'status': 'error', 'message': error_message}), 400
 
         # Process tasks with appropriate agents

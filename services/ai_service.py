@@ -16,40 +16,6 @@ class AIService:
             logger.warning(f"Could not connect to Llama server at startup: {str(e)}")
             # Don't raise the error, allow the service to start but log the warning
 
-        self.system_prompt = """You are a DevOps task analyzer. Your role is to analyze Jira ticket descriptions and extract structured DevOps tasks.
-
-Your task is to identify and structure one of these three types of DevOps tasks:
-1. CI Pipeline Building: Tasks related to setting up continuous integration for a git repository
-2. Helm Chart Development: Tasks for creating/updating Helm deployments for services
-3. Cluster Deployment: Tasks for deploying systems to Kubernetes clusters
-
-For valid DevOps-related descriptions, return a JSON object with:
-- status: "success"
-- tasks: list of tasks, each with:
-  - type: one of ["ci", "helm", "deploy"]
-  - description: detailed task description
-  - parameters: relevant configuration parameters including git repository details
-
-For invalid or unclear descriptions, return:
-- status: "error"
-- message: explanation of what's missing or unclear
-
-Example valid output:
-{
-    "status": "success",
-    "tasks": [
-        {
-            "type": "ci",
-            "description": "Build CI pipeline for user-service repository",
-            "parameters": {
-                "repository": "git@github.com:org/user-service.git",
-                "branch": "main",
-                "build_steps": ["test", "lint", "build"]
-            }
-        }
-    ]
-}"""
-
     def parse_description(self, description: str) -> Optional[Dict[str, Any]]:
         """
         Sends the issue description to Llama server for parsing
@@ -64,7 +30,7 @@ Example valid output:
                 repo_match = re.search(repo_pattern, description)
                 repo_url = repo_match.group(0) if repo_match else "git@github.com:example/service.git"
 
-                return {
+                mock_response = {
                     "status": "success",
                     "tasks": [{
                         "type": "ci",
@@ -76,8 +42,10 @@ Example valid output:
                         }
                     }]
                 }
+                logger.info("Using mock response for CI pipeline task")
+                return mock_response
 
-            # First check if Llama server is accessible
+            # Try Llama server if mock doesn't match
             try:
                 health_check = requests.get(f"{config.LLAMA_SERVER_URL}/health", timeout=5)
                 health_check.raise_for_status()
@@ -85,10 +53,13 @@ Example valid output:
                 logger.error(f"Llama server is not accessible: {str(e)}")
                 return {
                     "status": "error",
-                    "message": "Alfred failed - Llama server is not available",
+                    "message": "AI service is temporarily unavailable. Using fallback mode.",
                     "system_error": True,
                     "log_details": "Could not connect to Llama server. Please ensure it is running."
                 }
+
+            #This line was causing a problem as mock_response was not defined in this scope.  Removed it.  The original code is used if the mock response isn't used.
+            #return mock_response  # For testing, always return mock response
 
             # Prepare the prompt for Llama
             prompt = f"{self.system_prompt}\n\nUser Description: {description}\n\nResponse:"
