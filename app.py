@@ -1,9 +1,5 @@
 import os
 import sys
-# Add the root directory to Python path before any imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-import requests
 from flask import Flask, request, jsonify
 from services.jira_service import JiraService
 from services.ai_service import AIService
@@ -48,7 +44,10 @@ def create_app():
         return app
 
 app = create_app()
-app.secret_key = config.SECRET_KEY
+
+# Register CI agent routes under /ci prefix
+from agents.ci_agent.app import app as ci_agent_app
+app.register_blueprint(ci_agent_app, url_prefix='/ci')
 
 jira_service = JiraService()
 ai_service = AIService()

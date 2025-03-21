@@ -18,9 +18,12 @@ services:
       - HELM_AGENT_URL=http://helm_agent:9002
       - DEPLOY_AGENT_URL=http://deploy_agent:9003
       - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
       - DEBUG=False
     volumes:
       - .:/app
+    working_dir: /app
+    command: ./start.sh gunicorn --bind 0.0.0.0:5000 main:app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -32,11 +35,13 @@ services:
       - monitoring_network
 
   ci_agent:
-    build: ./agents/ci_agent
+    build: .
     ports:
       - "9001:9001"
     volumes:
-      - ./agents/ci_agent:/app
+      - .:/app
+    working_dir: /app
+    command: ./start.sh python ci_agent_server.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
       interval: 30s
@@ -47,28 +52,15 @@ services:
       - monitoring_network
 
   helm_agent:
-    build: ./agents/helm_agent
+    build: .
     ports:
       - "9002:9002"
     volumes:
-      - ./agents/helm_agent:/app
+      - .:/app
+    working_dir: /app
+    command: ./start.sh python -m agents.helm_agent.app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - monitoring_network
-
-  deploy_agent:
-    build: ./agents/deploy_agent
-    ports:
-      - "9003:9003"
-    volumes:
-      - ./agents/deploy_agent:/app
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
