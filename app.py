@@ -1,3 +1,8 @@
+import os
+import sys
+# Add the root directory to Python path before any imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import requests
 from flask import Flask, request, jsonify
 from services.jira_service import JiraService
@@ -6,7 +11,6 @@ from services.agent_router import AgentRouter
 from utils.validators import validate_jira_webhook, validate_ai_response
 from utils.logger import logger
 import config
-import os
 from flask_sqlalchemy import SQLAlchemy
 from prometheus_flask_exporter import PrometheusMetrics
 from prometheus_client import Counter, Histogram
