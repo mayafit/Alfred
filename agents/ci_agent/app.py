@@ -1,13 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Blueprint, request, jsonify
 from agents.utils.logger import setup_agent_logger
-from repo_analyzer import RepoAnalyzer
+from agents.ci_agent.repo_analyzer import RepoAnalyzer
 import subprocess
 import logging
 import os
 import json
 import config
 
-app = Flask(__name__)
+# Convert app to Blueprint
+app = Blueprint('ci_agent', __name__)
 logger = setup_agent_logger('ci-agent')
 repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
 
@@ -167,7 +168,3 @@ def execute():
         # Cleanup
         if repo_path:
             repo_analyzer.cleanup(repo_path)
-
-if __name__ == '__main__':
-    # ALWAYS serve the CI agent on port 9001
-    app.run(host='0.0.0.0', port=9001, debug=True)
