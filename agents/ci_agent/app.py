@@ -1,9 +1,14 @@
+import os
+import sys
+# Add the root directory to Python path before any imports
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(root_dir)
+
 from flask import Blueprint, request, jsonify
 from agents.utils.logger import setup_agent_logger
 from agents.ci_agent.repo_analyzer import RepoAnalyzer
 import subprocess
 import logging
-import os
 import json
 import config
 

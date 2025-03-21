@@ -1,2 +1,3 @@
-# Initialize CI agent package
-# Initialize ci_agent package
+"""
+CI Agent package initialization
+"""
