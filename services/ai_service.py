@@ -6,6 +6,15 @@ import config
 
 class AIService:
     def __init__(self):
+        # Try to connect to Llama server on initialization
+        try:
+            response = requests.get(f"{config.LLAMA_SERVER_URL}/health")
+            response.raise_for_status()
+            logger.debug("Successfully connected to Llama server")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Could not connect to Llama server at startup: {str(e)}")
+            # Don't raise the error, allow the service to start but log the warning
+
         self.system_prompt = """You are a DevOps task analyzer. Your role is to analyze Jira ticket descriptions and extract structured DevOps tasks.
 
 Your task is to identify and structure one of these three types of DevOps tasks:
@@ -47,6 +56,19 @@ Example valid output:
         try:
             logger.debug(f"Sending description to Llama for parsing: {description[:100]}...")
 
+            # First check if Llama server is accessible
+            try:
+                health_check = requests.get(f"{config.LLAMA_SERVER_URL}/health", timeout=5)
+                health_check.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Llama server is not accessible: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": "Alfred failed - Llama server is not available",
+                    "system_error": True,
+                    "log_details": "Could not connect to Llama server. Please ensure it is running."
+                }
+
             # Prepare the prompt for Llama
             prompt = f"{self.system_prompt}\n\nUser Description: {description}\n\nResponse:"
 
@@ -58,7 +80,8 @@ Example valid output:
                     "temperature": 0.2,
                     "max_tokens": 1000,
                     "stop": ["\n\n"]
-                }
+                },
+                timeout=30  # Add timeout to prevent hanging
             )
             response.raise_for_status()
 
