@@ -8,6 +8,8 @@ from utils.logger import logger
 import config
 import os
 from flask_sqlalchemy import SQLAlchemy
+from prometheus_flask_exporter import PrometheusMetrics
+from prometheus_client import Counter, Histogram
 
 # Initialize Flask-SQLAlchemy
 db = SQLAlchemy()
@@ -19,6 +21,12 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.secret_key = os.environ.get("SESSION_SECRET")
+
+    # Initialize Prometheus metrics
+    metrics = PrometheusMetrics(app)
+
+    # Static information as metric
+    metrics.info('app_info', 'Application info', version='1.0.0')
 
     # Initialize plugins
     db.init_app(app)
@@ -41,6 +49,10 @@ app.secret_key = config.SECRET_KEY
 jira_service = JiraService()
 ai_service = AIService()
 agent_router = AgentRouter()
+
+# Add some custom metrics
+task_counter = Counter('task_total', 'Total number of tasks processed', ['type', 'status'])
+task_processing_time = Histogram('task_processing_seconds', 'Time spent processing tasks')
 
 @app.route('/')
 def index():
