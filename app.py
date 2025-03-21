@@ -6,8 +6,36 @@ from services.agent_router import AgentRouter
 from utils.validators import validate_jira_webhook, validate_ai_response
 from utils.logger import logger
 import config
+import os
+from flask_sqlalchemy import SQLAlchemy
 
-app = Flask(__name__)
+# Initialize Flask-SQLAlchemy
+db = SQLAlchemy()
+
+def create_app():
+    app = Flask(__name__)
+
+    # Configure the SQLAlchemy part of the app instance
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.secret_key = os.environ.get("SESSION_SECRET")
+
+    # Initialize plugins
+    db.init_app(app)
+
+    with app.app_context():
+        # Import routes
+        from routes.dashboard import dashboard
+
+        # Register blueprints
+        app.register_blueprint(dashboard)
+
+        # Create database tables
+        db.create_all()
+
+        return app
+
+app = create_app()
 app.secret_key = config.SECRET_KEY
 
 jira_service = JiraService()
