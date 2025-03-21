@@ -7,6 +7,22 @@ import re
 
 class AIService:
     def __init__(self):
+        self.system_prompt = """You are a DevOps task analyzer. Your role is to analyze descriptions and extract structured DevOps tasks.
+
+For repository analysis, respond with JSON in this format:
+{
+    "project_type": "string (one of: csharp_library, aspnet_service, node_service, website)",
+    "confidence": "float (0-1)",
+    "build_steps": ["list of required build steps"]
+}
+
+Example valid output:
+{
+    "project_type": "node_service",
+    "confidence": 0.95,
+    "build_steps": ["install", "lint", "test", "build"]
+}"""
+
         # Try to connect to Llama server on initialization
         try:
             response = requests.get(f"{config.LLAMA_SERVER_URL}/health")
@@ -58,9 +74,6 @@ class AIService:
                     "log_details": "Could not connect to Llama server. Please ensure it is running."
                 }
 
-            #This line was causing a problem as mock_response was not defined in this scope.  Removed it.  The original code is used if the mock response isn't used.
-            #return mock_response  # For testing, always return mock response
-
             # Prepare the prompt for Llama
             prompt = f"{self.system_prompt}\n\nUser Description: {description}\n\nResponse:"
 
@@ -83,7 +96,7 @@ class AIService:
                 logger.error("Empty response from Llama server")
                 return {
                     "status": "error",
-                    "message": "Alfred failed - See Alfred's log",
+                    "message": "Failed to analyze description",
                     "system_error": True,
                     "log_details": "Empty response from Llama server"
                 }
@@ -95,51 +108,12 @@ class AIService:
                 logger.error(f"Failed to parse Llama response as JSON: {str(e)}")
                 return {
                     "status": "error",
-                    "message": "Alfred failed - See Alfred's log",
+                    "message": "Failed to analyze description",
                     "system_error": True,
                     "log_details": f"JSON parsing error: {str(e)}"
                 }
 
-            # Basic validation of response structure
-            if "status" not in result:
-                logger.error("Response missing required 'status' field")
-                return {
-                    "status": "error",
-                    "message": "Alfred failed - See Alfred's log",
-                    "system_error": True,
-                    "log_details": "Invalid response format from Llama service"
-                }
-
-            if result["status"] == "success":
-                if not isinstance(result.get("tasks"), list):
-                    logger.error("Success response missing tasks list")
-                    return {
-                        "status": "error",
-                        "message": "Alfred failed - See Alfred's log",
-                        "system_error": True,
-                        "log_details": "Invalid tasks format in Llama response"
-                    }
-
-                # Additional validation for task types
-                valid_types = {"ci", "helm", "deploy"}
-                for task in result["tasks"]:
-                    if not isinstance(task, dict) or "type" not in task:
-                        logger.error("Invalid task format")
-                        return {
-                            "status": "error",
-                            "message": "Alfred failed - See Alfred's log",
-                            "system_error": True,
-                            "log_details": "Task missing required fields"
-                        }
-                    if task["type"] not in valid_types:
-                        logger.error(f"Invalid task type: {task['type']}")
-                        return {
-                            "status": "error",
-                            "message": "Alfred failed - See Alfred's log",
-                            "system_error": True,
-                            "log_details": f"Invalid task type: {task['type']}"
-                        }
-
+            logger.info(f"Successfully parsed description: {result}")
             return result
 
         except requests.exceptions.RequestException as e:
@@ -147,7 +121,7 @@ class AIService:
             logger.error(error_msg)
             return {
                 "status": "error",
-                "message": "Alfred failed - See Alfred's log",
+                "message": "Failed to analyze description",
                 "system_error": True,
                 "log_details": error_msg
             }
@@ -156,7 +130,7 @@ class AIService:
             logger.error(error_msg)
             return {
                 "status": "error",
-                "message": "Alfred failed - See Alfred's log",
+                "message": "Failed to analyze description",
                 "system_error": True,
                 "log_details": error_msg
             }
