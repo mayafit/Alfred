@@ -146,5 +146,56 @@ def jira_webhook():
         logger.error(f"Error processing webhook: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/test/ci', methods=['POST'])
+def test_ci():
+    """
+    Test endpoint specifically for CI pipeline creation
+    """
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Request must be JSON'}), 400
+
+        data = request.json
+        repository = data.get('repository')
+        if not repository:
+            return jsonify({'error': 'Repository URL is required'}), 400
+
+        logger.info(f"Testing CI pipeline creation for repository: {repository}")
+
+        # Create a CI task structure
+        task = {
+            "type": "ci",
+            "description": "Set up CI pipeline",
+            "parameters": {
+                "repository": repository,
+                "branch": data.get('branch', 'main'),
+                "build_steps": data.get('build_steps', ["test", "lint", "build"])
+            }
+        }
+
+        # Route the task directly to CI agent
+        logger.info("Routing task to CI agent")
+        result = agent_router.route_task('ci', task)
+        if not result:
+            logger.error("Failed to process CI task - no response from agent")
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to process CI task'
+            }), 500
+
+        logger.info(f"CI agent response: {result}")
+        return jsonify({
+            'status': 'success',
+            'message': 'CI pipeline created',
+            'result': result
+        })
+
+    except Exception as e:
+        logger.error(f"Error processing CI test request: {str(e)}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

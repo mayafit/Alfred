@@ -35,10 +35,60 @@ def validate_ci_request(data):
 
 @app.route('/health')
 def health():
-    return jsonify({
-        "status": "healthy",
-        "service": "ci-agent"
-    })
+    """
+    Health check endpoint that also verifies access to templates and dependencies
+    """
+    try:
+        # Check if template directory exists and contains required templates
+        template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        required_templates = [
+            "csharp_library.groovy",
+            "aspnet_service.groovy",
+            "node_service.groovy",
+            "website.groovy"
+        ]
+
+        templates_exist = all(
+            os.path.exists(os.path.join(template_dir, template))
+            for template in required_templates
+        )
+
+        # Check git command availability
+        try:
+            subprocess.run(["git", "--version"], check=True, capture_output=True)
+            git_available = True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            git_available = False
+            logger.error("Git command not available")
+
+        if not templates_exist:
+            logger.error("Missing required Jenkins templates")
+            return jsonify({
+                "status": "unhealthy",
+                "service": "ci-agent",
+                "error": "Missing required templates"
+            }), 500
+
+        if not git_available:
+            return jsonify({
+                "status": "unhealthy",
+                "service": "ci-agent",
+                "error": "Git command not available"
+            }), 500
+
+        return jsonify({
+            "status": "healthy",
+            "service": "ci-agent",
+            "templates_available": True,
+            "git_available": True
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "service": "ci-agent",
+            "error": str(e)
+        }), 500
 
 @app.route('/execute', methods=['POST'])
 def execute():
@@ -87,20 +137,32 @@ def execute():
                 "branch": branch,
                 "project_type": analysis['project_type'],
                 "confidence": analysis['confidence'],
-                "build_steps": build_steps
+                "build_steps": build_steps,
+                "pipeline_status": "Pipeline configured and ready"
             }
         }
 
         logger.info(f"Successfully created CI pipeline for {repository}")
         return jsonify(response)
 
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Git operation failed: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            "status": "error",
+            "message": error_msg,
+            "details": {
+                "command": e.cmd,
+                "exit_code": e.returncode,
+                "output": e.output.decode() if e.output else None
+            }
+        }), 500
     except Exception as e:
         logger.error(f"Error processing CI request: {str(e)}")
         return jsonify({
             "status": "error",
             "message": f"Failed to process CI request: {str(e)}"
         }), 500
-
     finally:
         # Cleanup
         if repo_path:

@@ -67,6 +67,67 @@ curl -X POST http://localhost:5000/test/analyze \
 
 The service will analyze the description and return a structured JSON response with the parsed tasks.
 
+## Testing CI Pipeline Creation
+
+You can test the CI pipeline creation functionality using the `/test/ci` endpoint. Here are examples for different project types:
+
+### C# Library
+```bash
+curl -X POST http://localhost:5000/test/ci \
+-H "Content-Type: application/json" \
+-d '{
+  "repository": "git@github.com:example/csharp-lib.git",
+  "branch": "main",
+  "build_steps": ["restore", "build", "test", "pack"]
+}'
+```
+
+### ASP.NET Core Service
+```bash
+curl -X POST http://localhost:5000/test/ci \
+-H "Content-Type: application/json" \
+-d '{
+  "repository": "git@github.com:example/aspnet-service.git",
+  "branch": "main",
+  "build_steps": ["restore", "build", "test", "publish", "docker-build"]
+}'
+```
+
+### Node.js Service
+```bash
+curl -X POST http://localhost:5000/test/ci \
+-H "Content-Type: application/json" \
+-d '{
+  "repository": "git@github.com:example/node-service.git",
+  "branch": "main",
+  "build_steps": ["install", "lint", "test", "build", "docker-build"]
+}'
+```
+
+### Website
+```bash
+curl -X POST http://localhost:5000/test/ci \
+-H "Content-Type: application/json" \
+-d '{
+  "repository": "git@github.com:example/website.git",
+  "branch": "main",
+  "build_steps": ["install", "lint", "test", "build", "deploy"]
+}'
+```
+
+The service will:
+1. Clone the repository
+2. Analyze the project type using AI
+3. Generate an appropriate Jenkins pipeline
+4. Return detailed analysis results
+
+Response includes:
+- Project type detection with confidence score
+- Generated pipeline configuration
+- Build step details
+- Execution status
+
+
 ## API Endpoints
 
 ### Health Check
