@@ -1,8 +1,9 @@
 import os
 import sys
 
-# Add the agents directory to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the root directory to Python path
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(root_dir)
 
 from agents.ci_agent.app import app
 
