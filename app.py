@@ -8,24 +8,41 @@ from utils.logger import logger
 import config
 import os
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
 from prometheus_flask_exporter import PrometheusMetrics
 from prometheus_client import Counter, Histogram
+import logging
 
-# Initialize Flask-SQLAlchemy
-db = SQLAlchemy()
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+class Base(DeclarativeBase):
+    pass
+
+db = SQLAlchemy(model_class=Base)
 
 def create_app():
     app = Flask(__name__)
 
     # Configure the SQLAlchemy part of the app instance
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'connect_args': {
+            'sslmode': 'require' if os.environ.get('POSTGRES_SSL', 'true').lower() == 'true' else 'prefer'
+        }
+    }
     app.secret_key = os.environ.get("SESSION_SECRET")
 
     # Initialize Prometheus metrics
     metrics = PrometheusMetrics(app)
-
-    # Static information as metric
     metrics.info('app_info', 'Application info', version='1.0.0')
 
     # Initialize plugins
@@ -38,11 +55,17 @@ def create_app():
         # Register blueprints
         app.register_blueprint(dashboard)
 
-        # Create database tables
-        db.create_all()
+        try:
+            # Create database tables
+            db.create_all()
+            logger.info("Database tables created successfully")
+        except Exception as e:
+            logger.error(f"Error creating database tables: {str(e)}")
+            raise
 
         return app
 
+# Create the app instance
 app = create_app()
 app.secret_key = config.SECRET_KEY
 
@@ -237,4 +260,5 @@ def test_ci():
         }), 500
 
 if __name__ == '__main__':
+    # Always serve the app on port 5000
     app.run(host='0.0.0.0', port=5000, debug=True)
