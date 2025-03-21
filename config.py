@@ -6,7 +6,7 @@ JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL")
 
 # LLama Server Configuration
-LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://localhost:8080")
+LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://localhost:11434")  
 
 # Agent Configuration
 CI_AGENT_URL = os.getenv("CI_AGENT_URL", "http://localhost:9001")

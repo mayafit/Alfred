@@ -5,29 +5,28 @@ An automated DevOps service that leverages AI agents to streamline Jira ticket p
 ## Overview
 
 This service automates DevOps tasks by:
-1. Monitoring Jira tickets assigned to the DevOps team
-2. Processing ticket descriptions using AI to extract actionable tasks
-3. Routing tasks to specialized AI agents (CI, Helm, Deploy) for execution
-4. Updating Jira tickets with execution results
+1. Processing task descriptions using AI to extract actionable tasks
+2. Routing tasks to specialized AI agents (CI, Helm, Deploy) for execution
+3. Providing feedback on task execution results
 
 ## Prerequisites
 
 - Docker and Docker Compose (for deployment)
-- Jira account with API access
-- OpenAI API key
+- Llama server running (default: http://localhost:11434)
+- Jira account with API access (optional)
 
 ## Environment Variables
 
 Create a `.env` file with the following variables:
 
 ```env
-# Jira Configuration
+# Jira Configuration (Optional)
 JIRA_URL=https://your-domain.atlassian.net
 JIRA_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-jira-api-token
 
-# OpenAI Configuration
-OPENAI_API_KEY=your-openai-api-key
+# Llama Server Configuration
+LLAMA_SERVER_URL=http://localhost:11434
 
 # Agent Configuration
 CI_AGENT_URL=http://ci-agent-url
@@ -39,33 +38,34 @@ SECRET_KEY=your-secret-key
 DEBUG=False
 ```
 
-## Installation and Deployment
+## Testing the Service
 
-### Using Docker (Recommended)
+You can test the AI task analysis without Jira integration using the `/test/analyze` endpoint:
 
-1. Clone the repository
-2. Create and populate the `.env` file with your configuration
-3. Build and run using Docker Compose:
 ```bash
-docker-compose up -d
+# Example: Testing CI pipeline task
+curl -X POST http://localhost:5000/test/analyze \
+-H "Content-Type: application/json" \
+-d '{
+  "description": "Build CI pipeline for user-service repository\n\nTasks:\n1. Set up CI pipeline for git@github.com:org/user-service.git\n2. Configure build steps: test, lint, build\n3. Use main branch as default"
+}'
+
+# Example: Testing Helm deployment task
+curl -X POST http://localhost:5000/test/analyze \
+-H "Content-Type: application/json" \
+-d '{
+  "description": "Create Helm chart for payment service\n\nTasks:\n1. Create Helm chart for git@github.com:org/payment-service.git\n2. Configure service ports and environment variables\n3. Set up ingress rules"
+}'
+
+# Example: Testing cluster deployment task
+curl -X POST http://localhost:5000/test/analyze \
+-H "Content-Type: application/json" \
+-d '{
+  "description": "Deploy authentication service to production\n\nTasks:\n1. Deploy from git@github.com:org/auth-service.git\n2. Use production namespace\n3. Configure horizontal pod autoscaling"
+}'
 ```
 
-The service will be available at `http://localhost:5000`
-
-### Development Setup
-
-For local development without Docker:
-
-1. Ensure Python 3.11+ is installed
-2. Install required packages:
-```bash
-pip install flask flask-sqlalchemy gunicorn jira openai requests psycopg2-binary
-```
-3. Set up environment variables
-4. Run the application:
-```bash
-python main.py
-```
+The service will analyze the description and return a structured JSON response with the parsed tasks.
 
 ## API Endpoints
 
