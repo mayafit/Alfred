@@ -1,12 +1,15 @@
 from flask import Flask, request, jsonify
 from agents.utils.logger import setup_agent_logger
+from repo_analyzer import RepoAnalyzer
 import subprocess
 import logging
 import os
 import json
+import config
 
 app = Flask(__name__)
 logger = setup_agent_logger('ci-agent')
+repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
 
 def validate_ci_request(data):
     """
@@ -39,6 +42,7 @@ def health():
 
 @app.route('/execute', methods=['POST'])
 def execute():
+    repo_path = None
     try:
         data = request.get_json()
         if not data:
@@ -63,16 +67,27 @@ def execute():
         logger.info(f"Processing CI pipeline for {repository} on branch {branch}")
         logger.debug(f"Build steps: {build_steps}")
 
-        # Here we'd implement the actual CI pipeline creation
-        # For now, we'll return a mock success response
+        # Clone repository
+        repo_path = repo_analyzer.clone_repository(repository, branch)
+        logger.info(f"Repository cloned to {repo_path}")
+
+        # Analyze project type
+        analysis = repo_analyzer.analyze_project_type(repo_path)
+        logger.info(f"Project analysis: {analysis}")
+
+        # Generate Jenkinsfile
+        repo_analyzer.generate_jenkins_file(repo_path, analysis['project_type'])
+        logger.info("Generated Jenkinsfile")
+
         response = {
             "status": "success",
             "message": "CI pipeline created successfully",
             "details": {
                 "repository": repository,
                 "branch": branch,
-                "build_steps": build_steps,
-                "pipeline_url": f"https://ci.example.com/pipelines/{repository.split('/')[-1]}"
+                "project_type": analysis['project_type'],
+                "confidence": analysis['confidence'],
+                "build_steps": build_steps
             }
         }
 
@@ -85,6 +100,11 @@ def execute():
             "status": "error",
             "message": f"Failed to process CI request: {str(e)}"
         }), 500
+
+    finally:
+        # Cleanup
+        if repo_path:
+            repo_analyzer.cleanup(repo_path)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9001, debug=True)
