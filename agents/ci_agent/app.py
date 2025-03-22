@@ -1,16 +1,66 @@
-from flask import Blueprint, request, jsonify
+import sys
+import os
+from flask import Blueprint, request, jsonify, Flask
 from agents.utils.logger import setup_agent_logger
 from agents.ci_agent.repo_analyzer import RepoAnalyzer
+from prometheus_flask_exporter import PrometheusMetrics
 import subprocess
 import logging
-import os
 import json
 import config
+from agents.ci_agent.routes import register_routes
 
-# Convert app to Blueprint
-app = Blueprint('ci_agent', __name__)
+# Create Blueprint first
+ci_agent_bp = Blueprint('ci_agent', __name__)
 logger = setup_agent_logger('ci-agent')
+
+# Define all routes before creating the app
+@ci_agent_bp.route('/health')
+def health():
+    return jsonify({"status": "healthy"}), 200
+
+@ci_agent_bp.route('/execute', methods=['POST'])
+def execute():
+    # ...existing execute route code...
+    pass
+
+# Initialize repo analyzer
 repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
+
+def create_app():
+    app = Flask(__name__)
+    
+    # Database configuration
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'connect_args': {
+            'sslmode': 'require' if os.environ.get('POSTGRES_SSL', 'true').lower() == 'true' else 'prefer'
+        }
+    }
+    
+    # Initialize metrics
+    metrics = PrometheusMetrics(app)
+    metrics.info('app_info', 'Application info', version='1.0.0')
+    
+    # Initialize blueprint and routes
+    blueprint = Blueprint('ci_agent', __name__)
+    repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
+    register_routes(blueprint, repo_analyzer)
+    
+    # Register blueprint
+    app.register_blueprint(blueprint)
+    
+    return app
+
+# Create the application instance
+app = create_app()
 
 def validate_ci_request(data):
     """
@@ -34,7 +84,7 @@ def validate_ci_request(data):
 
     return True, None
 
-@app.route('/health')
+@ci_agent_bp.route('/health')
 def health():
     """
     Health check endpoint that also verifies access to templates and dependencies
@@ -91,7 +141,7 @@ def health():
             "error": str(e)
         }), 500
 
-@app.route('/execute', methods=['POST'])
+@ci_agent_bp.route('/execute', methods=['POST'])
 def execute():
     repo_path = None
     try:
@@ -168,3 +218,6 @@ def execute():
         # Cleanup
         if repo_path:
             repo_analyzer.cleanup(repo_path)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=9001)

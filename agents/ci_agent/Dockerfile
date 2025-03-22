@@ -5,14 +5,21 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    curl \
+    gcc \
+    python3-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Create directory for templates and repo storage
-RUN mkdir -p /app/templates /tmp/repos
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py repo_analyzer.py ./
-COPY templates/*.groovy templates/
-RUN pip install --no-cache-dir flask requests
+# Create directory for templates and repo storage
+RUN mkdir -p templates /tmp/repos
+
+# Copy application files
+COPY . .
 
 EXPOSE 9001
-CMD ["python", "app.py"]
+CMD ["python", "-m", "agents.ci_agent.app"]

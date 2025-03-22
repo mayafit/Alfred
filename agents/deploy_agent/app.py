@@ -1,12 +1,64 @@
-from flask import Flask, request, jsonify
-from agents.utils.logger import setup_agent_logger
-import logging
+import sys
 import os
-import json
+from flask import Blueprint, request, jsonify, Flask
+from agents.utils.logger import setup_agent_logger
 
-app = Flask(__name__)
+from prometheus_flask_exporter import PrometheusMetrics
+import subprocess
+import logging
+import json
+import config
+from agents.deploy_agent.routes import register_routes
+
+# Create Blueprint first
+deploy_agent_bp = Blueprint('deploy_agent', __name__)
 logger = setup_agent_logger('deploy-agent')
 
+# Define all routes before creating the app
+@deploy_agent_bp.route('/health')
+def health():
+    return jsonify({"status": "healthy"}), 200
+
+@deploy_agent_bp.route('/execute', methods=['POST'])
+def execute():
+    # ...existing execute route code...
+    pass
+
+
+def create_app():
+    app = Flask(__name__)
+    
+    # Database configuration
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'connect_args': {
+            'sslmode': 'require' if os.environ.get('POSTGRES_SSL', 'true').lower() == 'true' else 'prefer'
+        }
+    }
+    
+    # Initialize metrics
+    metrics = PrometheusMetrics(app)
+    metrics.info('app_info', 'Application info', version='1.0.0')
+    
+    # Initialize blueprint and routes
+    blueprint = Blueprint('deploy_agent', __name__)
+   # repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
+   # register_routes(blueprint, repo_analyzer)
+    
+    # Register blueprint
+    app.register_blueprint(blueprint)
+    
+    return app
+
+# Create the application instance
+app = create_app()
 def validate_deploy_request(data):
     """
     Validate incoming deployment request data
@@ -18,22 +70,78 @@ def validate_deploy_request(data):
         return False, "Missing parameters field"
 
     params = data['parameters']
-    required_fields = ['repository', 'namespace']
+    required_fields = ['repository', 'service_ports', 'environment_variables']
 
     for field in required_fields:
         if field not in params:
             return False, f"Missing required field: {field}"
 
+    if not isinstance(params['service_ports'], list):
+        return False, "service_ports must be a list"
+
+    if not isinstance(params['environment_variables'], dict):
+        return False, "environment_variables must be a dictionary"
+
     return True, None
 
-@app.route('/health')
+@deploy_agent_bp.route('/health')
 def health():
-    return jsonify({
-        "status": "healthy",
-        "service": "deploy-agent"
-    })
+    """
+    Health check endpoint that also verifies access to templates and dependencies
+    """
+    try:
+        # Check if template directory exists and contains required templates
+        template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        required_templates = [
+            "csharp_library.groovy",
+            "aspnet_service.groovy",
+            "node_service.groovy",
+            "website.groovy"
+        ]
 
-@app.route('/execute', methods=['POST'])
+        templates_exist = all(
+            os.path.exists(os.path.join(template_dir, template))
+            for template in required_templates
+        )
+
+        # Check git command availability
+        try:
+            subprocess.run(["git", "--version"], check=True, capture_output=True)
+            git_available = True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            git_available = False
+            logger.error("Git command not available")
+
+        if not templates_exist:
+            logger.error("Missing required Jenkins templates")
+            return jsonify({
+                "status": "unhealthy",
+                "service": "deploy-agent",
+                "error": "Missing required templates"
+            }), 500
+
+        if not git_available:
+            return jsonify({
+                "status": "unhealthy",
+                "service": "deploy-agent",
+                "error": "Git command not available"
+            }), 500
+
+        return jsonify({
+            "status": "healthy",
+            "service": "deploy-agent",
+            "templates_available": True,
+            "git_available": True
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "service": "deploy-agent",
+            "error": str(e)
+        }), 500
+
+@deploy_agent_bp.route('/execute', methods=['POST'])
 def execute():
     try:
         data = request.get_json()
@@ -73,6 +181,18 @@ def execute():
         logger.info(f"Successfully deployed {repository} to {namespace}")
         return jsonify(response)
 
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Git operation failed: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            "status": "error",
+            "message": error_msg,
+            "details": {
+                "command": e.cmd,
+                "exit_code": e.returncode,
+                "output": e.output.decode() if e.output else None
+            }
+        }), 500
     except Exception as e:
         logger.error(f"Error processing deployment: {str(e)}")
         return jsonify({

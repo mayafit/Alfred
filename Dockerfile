@@ -10,15 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+COPY pyproject.toml .
+
 # Install Python dependencies
-RUN pip install --no-cache-dir \
-    flask \
-    flask-sqlalchemy \
-    gunicorn \
-    jira \
-    openai \
-    requests \
-    psycopg2-binary
+RUN pip install --no-cache-dir .
+#    flask \
+#    flask-sqlalchemy \
+#    gunicorn \
+#    jira \
+#    openai \
+#    requests \
+#    psycopg2-binary
 
 # Copy application code
 COPY . .
