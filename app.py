@@ -82,6 +82,7 @@ app.secret_key = config.SECRET_KEY
 jira_service = JiraService()
 ai_service = AIService()
 agent_router = AgentRouter()
+# SMS service has been removed as per user request
 
 # Define Prometheus metrics
 task_counter = Counter('task_total', 'Total number of tasks processed', ['type', 'status'])

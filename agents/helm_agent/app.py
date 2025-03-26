@@ -6,7 +6,6 @@ from prometheus_flask_exporter import PrometheusMetrics
 import subprocess
 import logging
 import json
-import config
 from prometheus_client import REGISTRY, Collector
 from agents.helm_agent.smol_helm_agent import SmolHelmAgent
 

@@ -16,6 +16,8 @@ with main_app.app_context():
     # Register task routes
     register_task_routes(main_app)
     
+    # Notification routes have been removed as per user request
+    
     # Serve static files from images directory
     from flask import send_from_directory
     

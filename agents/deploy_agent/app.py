@@ -6,7 +6,6 @@ from prometheus_flask_exporter import PrometheusMetrics
 import subprocess
 import logging
 import json
-import config
 from agents.deploy_agent.routes import register_routes
 from prometheus_client import REGISTRY, Collector
 from agents.deploy_agent.smol_deploy_agent import SmolDeployAgent
