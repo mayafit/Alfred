@@ -27,18 +27,50 @@ Example valid output:
 
         # Initialize AI client based on configuration
         try:
-            if hasattr(config, 'OPENAI_API_KEY') and config.OPENAI_API_KEY:
-                self.client = OpenAI(api_key=config.OPENAI_API_KEY)
-                self.provider = "openai"
-                logger.debug("Successfully initialized OpenAI client")
-            elif hasattr(config, 'LLAMA_SERVER_URL') and config.LLAMA_SERVER_URL:
-                self.provider = "local"
-                self.llama_url = config.LLAMA_SERVER_URL
-                logger.debug(f"Successfully initialized local LLM client at {self.llama_url}")
-            else:
-                raise ValueError("No AI provider configuration found")
+            self.provider = config.LLM_PROVIDER.lower()
             
-            self.ai_available = True
+            if self.provider == "openai" and config.OPENAI_API_KEY:
+                self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+                logger.debug("Successfully initialized OpenAI client")
+                self.ai_available = True
+                
+            elif self.provider == "gemini" and config.GEMINI_API_KEY:
+                self.gemini_url = config.GEMINI_URL
+                self.gemini_api_key = config.GEMINI_API_KEY
+                logger.debug(f"Successfully initialized Google Gemini client")
+                self.ai_available = True
+                
+            elif self.provider == "other" and config.OTHER_LLM_URL and config.OTHER_LLM_API_KEY:
+                self.other_llm_url = config.OTHER_LLM_URL
+                self.other_llm_api_key = config.OTHER_LLM_API_KEY
+                logger.debug(f"Successfully initialized other LLM client at {config.OTHER_LLM_URL}")
+                self.ai_available = True
+                
+            else:
+                # Try fallbacks if preferred provider isn't available
+                if config.OPENAI_API_KEY:
+                    self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+                    self.provider = "openai"
+                    logger.debug("Falling back to OpenAI client")
+                    self.ai_available = True
+                    
+                elif config.GEMINI_API_KEY:
+                    self.gemini_url = config.GEMINI_URL
+                    self.gemini_api_key = config.GEMINI_API_KEY
+                    self.provider = "gemini"
+                    logger.debug("Falling back to Google Gemini client")
+                    self.ai_available = True
+                    
+                elif config.OTHER_LLM_URL and config.OTHER_LLM_API_KEY:
+                    self.other_llm_url = config.OTHER_LLM_URL
+                    self.other_llm_api_key = config.OTHER_LLM_API_KEY
+                    self.provider = "other"
+                    logger.debug(f"Falling back to other LLM client")
+                    self.ai_available = True
+                    
+                else:
+                    raise ValueError("No AI provider configuration found")
+                
         except Exception as e:
             logger.warning(f"Could not initialize AI client: {str(e)}")
             self.ai_available = False
@@ -56,10 +88,16 @@ Example valid output:
 
             logger.debug(f"Sending description to AI service for parsing: {description[:100]}...")
 
+            # Call the appropriate provider's implementation
             if self.provider == "openai":
                 response = self._call_openai(description)
-            else:  # local LLM
-                response = self._call_local_llm(description)
+            elif self.provider == "gemini":
+                response = self._call_gemini(description)
+            elif self.provider == "other":
+                response = self._call_other_llm(description)
+            else:
+                logger.error(f"Unknown provider: {self.provider}")
+                return self._parse_description_fallback(description)
 
             # Extract the response content
             if not response:
@@ -82,30 +120,26 @@ Example valid output:
     def _call_openai(self, description: str) -> Optional[str]:
         """Make request to OpenAI API"""
         try:
+            # The newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+            # do not change this unless explicitly requested by the user
             response = self.client.chat.completions.create(
-                model="gpt-4",  # or "gpt-3.5-turbo" for faster, cheaper responses
+                model=config.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": description}
                 ],
-                temperature=0.2,
-                max_tokens=1000,
-                response_format={ "type": "json_object" }
+                temperature=config.OPENAI_TEMPERATURE,
+                max_tokens=config.OPENAI_MAX_TOKENS,
+                response_format={"type": "json_object"}
             )
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Error calling OpenAI: {str(e)}")
             return None
 
-    def _call_local_llm(self, description: str) -> Optional[str]:
-        """Make request to local LLM server (LM Studio, Ollama, or Google Gemini)"""
+    def _call_gemini(self, description: str) -> Optional[str]:
+        """Make request to Google Gemini API"""
         try:
-            # Get access token from environment
-            access_token = os.environ.get('AI_SERVICE_TOKEN')
-            if not access_token:
-                logger.error("AI_SERVICE_TOKEN not found in environment variables")
-                return None
-
             # Format the prompt with system message and user input
             full_prompt = f"{self.system_prompt}\n\nUser: {description}\n\nAssistant:"
             
@@ -117,17 +151,26 @@ Example valid output:
                     ]
                 }],
                 "generationConfig": {
-                    "temperature": 0.2,
-                    "maxOutputTokens": 1000,
+                    "temperature": config.GEMINI_TEMPERATURE,
+                    "maxOutputTokens": config.GEMINI_MAX_TOKENS,
+                    "responseFormat": "JSON"
                 }
             }
             
-            # Log the request body
-            logger.debug(f"Sending request to LLM server with body: {json.dumps(request_body, indent=2)}")
+            # Log the request body (without sensitive information)
+            logger.debug(f"Sending request to Gemini API")
 
-            # Make request to local LLM server with key in query params
+            # Make request to Gemini API
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            # Add API key as query parameter or in Authorization header based on the API requirements
+            url = f"{self.gemini_url}?key={self.gemini_api_key}"
+            
             response = requests.post(
-                f"{self.llama_url}?key={access_token}",
+                url,
+                headers=headers,
                 json=request_body,
                 timeout=30
             )
@@ -135,13 +178,89 @@ Example valid output:
             
             # Extract the response content from Gemini API format
             result = response.json()
-            # Gemini API returns the response in a different structure
+            
+            # Gemini API returns the response in a specific structure
             if "candidates" in result and len(result["candidates"]) > 0:
-                return result["candidates"][0]["content"]["parts"][0]["text"]
+                text_content = result["candidates"][0]["content"]["parts"][0]["text"]
+                # Clean up the response to ensure it's valid JSON
+                return self._extract_json_from_text(text_content)
+            
+            logger.warning("Unexpected Gemini API response format")
             return None
+            
         except Exception as e:
-            logger.error(f"Error calling local LLM: {str(e)}")
+            logger.error(f"Error calling Gemini API: {str(e)}")
             return None
+
+    def _call_other_llm(self, description: str) -> Optional[str]:
+        """Make request to other LLM server (e.g., local Llama, custom deployment)"""
+        try:
+            # Format the prompt with system message and user input
+            full_prompt = f"{self.system_prompt}\n\nUser: {description}\n\nAssistant:"
+            
+            # Prepare request body based on LLM server's expected format
+            # This is a generic format that may need customization
+            request_body = {
+                "prompt": full_prompt,
+                "temperature": config.OTHER_LLM_TEMPERATURE,
+                "max_tokens": config.OTHER_LLM_MAX_TOKENS,
+                "format": "json"
+            }
+            
+            # Log the request (without sensitive information)
+            logger.debug(f"Sending request to custom LLM server")
+
+            # Make request to LLM server
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.other_llm_api_key}"
+            }
+            
+            response = requests.post(
+                self.other_llm_url,
+                headers=headers,
+                json=request_body,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            # Process response
+            result = response.json()
+            
+            # Extract response based on the expected structure
+            # This part may need customization based on the LLM server's response format
+            if "text" in result:
+                return self._extract_json_from_text(result["text"])
+            elif "content" in result:
+                return self._extract_json_from_text(result["content"])
+            elif "response" in result:
+                return self._extract_json_from_text(result["response"])
+            
+            logger.warning("Unexpected LLM server response format")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error calling custom LLM server: {str(e)}")
+            return None
+            
+    def _extract_json_from_text(self, text: str) -> str:
+        """Extract JSON from text that might contain additional content"""
+        try:
+            # Look for JSON-like content
+            json_start = text.find('{')
+            json_end = text.rfind('}') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                json_text = text[json_start:json_end]
+                # Validate it's valid JSON
+                json.loads(json_text)  # Just to verify
+                return json_text
+            
+            # If no valid JSON object found, return the original text
+            return text
+        except json.JSONDecodeError:
+            # If the extracted text isn't valid JSON, return the original
+            return text
 
     def _parse_description_fallback(self, description: str) -> Dict[str, Any]:
         """

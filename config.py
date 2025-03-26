@@ -11,11 +11,27 @@ JIRA_BASE_URL = os.environ.get('JIRA_BASE_URL', 'https://your-domain.atlassian.n
 JIRA_URL = JIRA_BASE_URL  # Added for backward compatibility
 
 # AI service settings
+# OpenAI configuration
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
-LOCAL_LLM_URL = os.environ.get('LOCAL_LLM_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent')
-LOCAL_LLM_API_KEY = os.environ.get('LOCAL_LLM_API_KEY')
-USE_LOCAL_LLM = os.environ.get('USE_LOCAL_LLM', 'True').lower() == 'true'
+OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE', '0.2'))
+OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS', '1000'))
+
+# Google Gemini configuration
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-pro')
+GEMINI_URL = os.environ.get('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent')
+GEMINI_TEMPERATURE = float(os.environ.get('GEMINI_TEMPERATURE', '0.2'))
+GEMINI_MAX_TOKENS = int(os.environ.get('GEMINI_MAX_TOKENS', '1000'))
+
+# Other LLM configuration (like local Llama, etc.)
+OTHER_LLM_URL = os.environ.get('OTHER_LLM_URL')
+OTHER_LLM_API_KEY = os.environ.get('OTHER_LLM_API_KEY')
+OTHER_LLM_TEMPERATURE = float(os.environ.get('OTHER_LLM_TEMPERATURE', '0.2'))
+OTHER_LLM_MAX_TOKENS = int(os.environ.get('OTHER_LLM_MAX_TOKENS', '1000'))
+
+# LLM provider selection - "openai", "gemini", or "other"
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'openai')
 
 # Agent settings
 LLAMA_SERVER_URL = os.environ.get('LLAMA_SERVER_URL', 'http://localhost:8080')
