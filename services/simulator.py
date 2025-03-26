@@ -11,14 +11,17 @@ import string
 from datetime import datetime, timedelta
 import uuid
 import json
+import requests
 
 from utils.logger import logger, log_system_event
 from models import db, TaskHistory, SystemMetrics
 import config
 
-# Global flag to control the simulation thread
+# Global flags and variables to control the simulation
 simulation_running = False
 simulation_thread = None
+simulation_jira_thread = None
+last_jira_event_time = 0
 
 # List of repositories for random selection
 SAMPLE_REPOSITORIES = [
@@ -337,23 +340,82 @@ def simulation_loop():
     
     logger.info("Simulation loop stopped")
 
-def start_simulation():
-    """Start the simulation thread"""
-    global simulation_running, simulation_thread
+def simulate_jira_webhook():
+    """Send a simulated Jira webhook to the application"""
+    try:
+        webhook_payload = generate_simulated_jira_webhook()
+        
+        # Make the request to the Jira webhook endpoint
+        response = requests.post(
+            f"{config.MAIN_SERVICE_URL}/webhook/jira",
+            json=webhook_payload,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Successfully sent simulated Jira webhook: {webhook_payload['issue']['key']}")
+            return True
+        else:
+            logger.error(f"Failed to send Jira webhook. Status: {response.status_code}, Response: {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Error sending simulated Jira webhook: {str(e)}")
+        return False
+
+def jira_webhook_loop():
+    """Main loop for sending Jira webhook events"""
+    global simulation_running, last_jira_event_time
     
-    if simulation_thread and simulation_thread.is_alive():
+    # Import app here to avoid circular imports
+    from app import app
+    
+    logger.info("Starting Jira webhook simulation loop")
+    
+    while simulation_running:
+        try:
+            # Check if it's time to send a Jira webhook
+            current_time = time.time()
+            if current_time - last_jira_event_time >= config.SIMULATION_JIRA_INTERVAL:
+                # Use app context for making requests
+                with app.app_context():
+                    simulate_jira_webhook()
+                last_jira_event_time = current_time
+            
+            # Sleep for a short time to avoid tight loops
+            time.sleep(1)
+        except Exception as e:
+            logger.error(f"Error in Jira webhook loop: {str(e)}")
+            # Add a short sleep to prevent tight loops in case of error
+            time.sleep(5)
+    
+    logger.info("Jira webhook simulation loop stopped")
+
+def start_simulation():
+    """Start the simulation threads"""
+    global simulation_running, simulation_thread, simulation_jira_thread, last_jira_event_time
+    
+    if (simulation_thread and simulation_thread.is_alive()) or (simulation_jira_thread and simulation_jira_thread.is_alive()):
         logger.warning("Simulation already running")
         return False
     
     simulation_running = True
+    last_jira_event_time = time.time()  # Reset the last event time
+    
+    # Start the regular simulation thread
     simulation_thread = threading.Thread(target=simulation_loop, daemon=True)
     simulation_thread.start()
+    
+    # Start the Jira webhook simulation thread if enabled
+    if config.SIMULATION_JIRA_EVENTS:
+        simulation_jira_thread = threading.Thread(target=jira_webhook_loop, daemon=True)
+        simulation_jira_thread.start()
+        logger.info("Jira webhook simulation started")
     
     logger.info("Simulation started")
     return True
 
 def stop_simulation():
-    """Stop the simulation thread"""
+    """Stop the simulation threads"""
     global simulation_running
     
     simulation_running = False
@@ -372,6 +434,96 @@ def get_simulation_status():
         "interval": config.SIMULATION_INTERVAL,
         "event_count": config.SIMULATION_EVENT_COUNT
     }
+
+def generate_simulated_jira_webhook():
+    """Generate a simulated Jira webhook payload"""
+    repo = generate_random_repo()
+    repo_name = repo.split('/')[-1]
+    issue_key = f"DEVOPS-{random.randint(100, 999)}"
+    
+    # Generate a random task description for the repository
+    task_description = random.choice(TASK_DESCRIPTIONS).format(repo=repo_name)
+    
+    # Add details about what needs to be done
+    build_steps = []
+    if random.random() > 0.5:
+        build_steps.append("npm install")
+    if random.random() > 0.3:
+        build_steps.append("npm test")
+    build_steps.append("npm build")
+    
+    service_ports = [{"port": random.randint(3000, 9000), "targetPort": random.randint(3000, 9000)}]
+    
+    env_vars = {
+        "NODE_ENV": random.choice(["development", "production", "staging"]),
+        "LOG_LEVEL": random.choice(["debug", "info", "warn", "error"]),
+        "DB_HOST": "db.example.com",
+        "CACHE_ENABLED": "true" if random.random() > 0.5 else "false"
+    }
+    
+    # Add detailed instructions in a format that would be recognized by the AI parser
+    detailed_instructions = f"""
+# DevOps Task Request
+
+## Repository Information
+- URL: {repo}
+- Branch: main
+
+## Task Details
+Please complete the following DevOps tasks:
+
+1. Create a CI pipeline for the repository
+   - Use the following build steps: {', '.join(build_steps)}
+   - Set up unit and integration tests
+
+2. Generate Helm charts for deployment
+   - Service ports: {service_ports[0]['port']}:{service_ports[0]['targetPort']}
+   - Environment variables:
+     - NODE_ENV: {env_vars['NODE_ENV']}
+     - LOG_LEVEL: {env_vars['LOG_LEVEL']}
+     - DB_HOST: {env_vars['DB_HOST']}
+     - CACHE_ENABLED: {env_vars['CACHE_ENABLED']}
+
+3. Deploy to Kubernetes cluster
+   - Namespace: {repo_name}-{env_vars['NODE_ENV']}
+   - Use rolling update strategy
+   - Set resource limits appropriately
+
+Please notify when these tasks are completed.
+"""
+    
+    # Create the full webhook payload
+    webhook_payload = {
+        "webhook_event": "issue_created",
+        "issue": {
+            "key": issue_key,
+            "fields": {
+                "summary": task_description,
+                "description": detailed_instructions,
+                "customfield_team": "DevOps",
+                "labels": ["devops", "automation"],
+                "status": {
+                    "name": "Open",
+                    "id": "1"
+                },
+                "priority": {
+                    "name": "Medium",
+                    "id": "3"
+                },
+                "reporter": {
+                    "name": f"user_{random.randint(1000, 9999)}",
+                    "email": "user@example.com"
+                }
+            }
+        },
+        "user": {
+            "name": f"user_{random.randint(1000, 9999)}",
+            "email": "user@example.com"
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    return webhook_payload
 
 def generate_simulated_workflow():
     """Generate a simulated workflow including all stages of a task"""
