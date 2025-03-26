@@ -1,9 +1,11 @@
 from typing import Dict, Any, Optional
 import json
 import requests
+from openai import OpenAI
 from utils.logger import logger
 import config
 import re
+import os
 
 class AIService:
     def __init__(self):
@@ -23,72 +25,127 @@ Example valid output:
     "build_steps": ["install", "lint", "test", "build"]
 }"""
 
-        # Try to connect to Llama server on initialization
+        # Initialize AI client based on configuration
         try:
-            response = requests.get(f"{config.LLAMA_SERVER_URL}/health")
-            response.raise_for_status()
-            logger.debug("Successfully connected to Llama server")
-            self.llama_available = True
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Could not connect to Llama server at startup: {str(e)}")
-            self.llama_available = False
-            # Don't raise the error, allow the service to start in fallback mode
+            if hasattr(config, 'OPENAI_API_KEY') and config.OPENAI_API_KEY:
+                self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+                self.provider = "openai"
+                logger.debug("Successfully initialized OpenAI client")
+            elif hasattr(config, 'LLAMA_SERVER_URL') and config.LLAMA_SERVER_URL:
+                self.provider = "local"
+                self.llama_url = config.LLAMA_SERVER_URL
+                logger.debug(f"Successfully initialized local LLM client at {self.llama_url}")
+            else:
+                raise ValueError("No AI provider configuration found")
+            
+            self.ai_available = True
+        except Exception as e:
+            logger.warning(f"Could not initialize AI client: {str(e)}")
+            self.ai_available = False
 
     def parse_description(self, description: str) -> Optional[Dict[str, Any]]:
         """
-        Sends the issue description to Llama server for parsing
-        Falls back to rule-based parsing if Llama is unavailable
+        Sends the issue description to AI service for parsing
+        Falls back to rule-based parsing if AI is unavailable
         """
         try:
-            # If Llama is not available, use rule-based parsing
-            if not self.llama_available:
+            # If AI is not available, use rule-based parsing
+            if not self.ai_available:
+                logger.warning("AI client not available, using fallback parser")
                 return self._parse_description_fallback(description)
 
-            logger.debug(f"Sending description to Llama for parsing: {description[:100]}...")
+            logger.debug(f"Sending description to AI service for parsing: {description[:100]}...")
 
-            # Try Llama server
-            try:
-                health_check = requests.get(f"{config.LLAMA_SERVER_URL}/health", timeout=5)
-                health_check.raise_for_status()
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Llama server is not accessible: {str(e)}")
-                return self._parse_description_fallback(description)
-
-            # Make request to Llama server
-            response = requests.post(
-                f"{config.LLAMA_SERVER_URL}/completion",
-                json={
-                    "prompt": f"{self.system_prompt}\n\nUser Description: {description}\n\nResponse:",
-                    "temperature": 0.2,
-                    "max_tokens": 1000,
-                    "stop": ["\n\n"]
-                },
-                timeout=30
-            )
-            response.raise_for_status()
+            if self.provider == "openai":
+                response = self._call_openai(description)
+            else:  # local LLM
+                response = self._call_local_llm(description)
 
             # Extract the response content
-            response_data = response.json()
-            if not response_data.get('content'):
-                logger.warning("Empty response from Llama server, using fallback")
+            if not response:
+                logger.warning("Empty response from AI service, using fallback")
                 return self._parse_description_fallback(description)
 
             # Parse the JSON response
             try:
-                result = json.loads(response_data['content'])
-                logger.info(f"Successfully parsed description with Llama: {result}")
+                result = json.loads(response)
+                logger.info(f"Successfully parsed description with AI: {result}")
                 return result
             except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse Llama response as JSON: {str(e)}")
+                logger.warning(f"Failed to parse AI response as JSON: {str(e)}")
                 return self._parse_description_fallback(description)
 
         except Exception as e:
-            logger.warning(f"Error using Llama server, falling back to rule-based parsing: {str(e)}")
+            logger.error(f"Error using AI service: {str(e)}", exc_info=True)
             return self._parse_description_fallback(description)
+
+    def _call_openai(self, description: str) -> Optional[str]:
+        """Make request to OpenAI API"""
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4",  # or "gpt-3.5-turbo" for faster, cheaper responses
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": description}
+                ],
+                temperature=0.2,
+                max_tokens=1000,
+                response_format={ "type": "json_object" }
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling OpenAI: {str(e)}")
+            return None
+
+    def _call_local_llm(self, description: str) -> Optional[str]:
+        """Make request to local LLM server (LM Studio, Ollama, or Google Gemini)"""
+        try:
+            # Get access token from environment
+            access_token = os.environ.get('AI_SERVICE_TOKEN')
+            if not access_token:
+                logger.error("AI_SERVICE_TOKEN not found in environment variables")
+                return None
+
+            # Format the prompt with system message and user input
+            full_prompt = f"{self.system_prompt}\n\nUser: {description}\n\nAssistant:"
+            
+            # Prepare request body for Google Gemini API
+            request_body = {
+                "contents": [{
+                    "parts": [
+                        {"text": full_prompt}
+                    ]
+                }],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 1000,
+                }
+            }
+            
+            # Log the request body
+            logger.debug(f"Sending request to LLM server with body: {json.dumps(request_body, indent=2)}")
+
+            # Make request to local LLM server with key in query params
+            response = requests.post(
+                f"{self.llama_url}?key={access_token}",
+                json=request_body,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            # Extract the response content from Gemini API format
+            result = response.json()
+            # Gemini API returns the response in a different structure
+            if "candidates" in result and len(result["candidates"]) > 0:
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+            return None
+        except Exception as e:
+            logger.error(f"Error calling local LLM: {str(e)}")
+            return None
 
     def _parse_description_fallback(self, description: str) -> Dict[str, Any]:
         """
-        Rule-based fallback parser when Llama is unavailable
+        Rule-based fallback parser when AI is unavailable
         """
         logger.info("Using fallback description parser")
 

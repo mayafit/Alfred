@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   devops_service:
-    build: .
+    image: alfred/devops-service:latest  # Replace with your image name
     ports:
       - "5000:5000"
     environment:
@@ -37,7 +37,7 @@ services:
         condition: service_healthy
 
   ci_agent:
-    build: ./agents/ci_agent
+    image: alfred/ci-agent:latest  # Replace with your image name
     ports:
       - "9001:9001"
     volumes:
@@ -59,7 +59,7 @@ services:
         condition: service_healthy
 
   helm_agent:
-    build: ./agents/helm_agent
+    image: alfred/helm-agent:latest  # Replace with your image name
     ports:
       - "9002:9002"
     volumes:
@@ -80,9 +80,8 @@ services:
       postgres:
         condition: service_healthy
 
-
   deploy_agent:
-    build: ./agents/deploy_agent
+    image: alfred/deploy-agent:latest  # Replace with your image name
     ports:
       - "9003:9003"
     volumes:
@@ -102,7 +101,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
 
   prometheus:
     image: prom/prometheus

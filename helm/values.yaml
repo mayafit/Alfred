@@ -30,7 +30,7 @@ mainApp:
     - name: DEPLOY_AGENT_URL
       value: "http://deploy-agent:9003"
     - name: LLAMA_SERVER_URL
-      value: "http://llama-server:11434"
+      value: "http://llama-server:4891"
     - name: SECRET_KEY
       value: "change-me-in-production"
 

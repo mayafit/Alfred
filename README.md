@@ -12,7 +12,7 @@ This service automates DevOps tasks by:
 ## Prerequisites
 
 - Docker and Docker Compose (for deployment)
-- Llama server running (default: http://localhost:11434)
+- Llama server running (default: http://localhost:  )
 - Jira account with API access (optional)
 
 ## Environment Variables
