@@ -38,8 +38,8 @@ Example valid output:
 
         # Initialize AI client based on configuration
         try:
-            logger.info(f"Initializing AI service with provider: {config.LLM_PROVIDER}")
-            self.provider = config.LLM_PROVIDER.lower()
+            logger.info(f"Initializing AI service with provider: {config.AI_PROVIDER}")
+            self.provider = config.AI_PROVIDER.lower()
             
             logger.debug(f"Selected provider: {self.provider}")
             logger.debug(f"OpenAI API Key present: {bool(config.OPENAI_API_KEY)}")

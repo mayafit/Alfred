@@ -1,9 +1,16 @@
 from flask import Flask
 from app import app as main_app
-#from agents.ci_agent.app import app as ci_agent_app
 
-# Register CI agent routes under /ci prefix
-#main_app.register_blueprint(ci_agent_app, url_prefix='/ci')
+# Import and register dashboard and simulation routes
+from routes.dashboard import register_routes as register_dashboard_routes
+from routes.simulation import register_routes as register_simulation_routes
+
+with main_app.app_context():
+    # Register dashboard routes
+    register_dashboard_routes(main_app)
+    
+    # Register simulation routes
+    register_simulation_routes(main_app)
 
 # Export the app for Gunicorn to find
 app = main_app

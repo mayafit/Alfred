@@ -7,7 +7,7 @@ class JiraService:
     def __init__(self):
         self.jira = JIRA(
             server=config.JIRA_URL,
-            basic_auth=(config.JIRA_EMAIL, config.JIRA_API_TOKEN)
+            basic_auth=(config.JIRA_USERNAME, config.JIRA_API_TOKEN)
         )
 
     def get_issue_description(self, issue_key: str) -> Optional[str]:

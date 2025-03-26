@@ -1,57 +1,66 @@
+"""
+Configuration module for the application.
+Contains environment-specific settings and feature flags.
+"""
+
 import os
+from dotenv import load_dotenv
 
-# App settings
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-replace-in-production')
+# Load environment variables from .env file if present
+load_dotenv()
 
-# OpenAI configuration
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
-OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE', '0.2'))
-OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS', '1000'))
+# Application settings
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
+SECRET_KEY = os.environ.get('SESSION_SECRET', 'devops-automation-secret-key')
 
+# Database settings
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# API settings
-JIRA_API_TOKEN = os.environ.get('JIRA_API_TOKEN')
-JIRA_USERNAME = os.environ.get('JIRA_USERNAME')
-JIRA_EMAIL = os.environ.get('JIRA_EMAIL', JIRA_USERNAME)  # Usually email is the username in Jira
-JIRA_BASE_URL = os.environ.get('JIRA_BASE_URL', 'https://your-domain.atlassian.net')
-JIRA_URL = JIRA_BASE_URL  # Added for backward compatibility
-
-# AI service settings
-# OpenAI configuration
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
-OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE', '0.2'))
-OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS', '1000'))
-
-# Google Gemini configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-pro')
-GEMINI_URL = os.environ.get('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent')
-GEMINI_TEMPERATURE = float(os.environ.get('GEMINI_TEMPERATURE', '0.2'))
-GEMINI_MAX_TOKENS = int(os.environ.get('GEMINI_MAX_TOKENS', '1000'))
-
-# Other LLM configuration (like local Llama, etc.)
-OTHER_LLM_URL = os.environ.get('OTHER_LLM_URL', 'http://0.0.0.0:1234/v1/chat/completions')
-OTHER_LLM_API_KEY = os.environ.get('OTHER_LLM_API_KEY')
-OTHER_LLM_TEMPERATURE = float(os.environ.get('OTHER_LLM_TEMPERATURE', '0.2'))
-OTHER_LLM_MAX_TOKENS = int(os.environ.get('OTHER_LLM_MAX_TOKENS', '1000'))
-
-# LLM provider selection - "openai", "gemini", or "other"
-LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'openai')
-
-# Agent settings
-LLAMA_SERVER_URL = os.environ.get('LLAMA_SERVER_URL', 'http://localhost:8080')
+# Service URLs
+MAIN_SERVICE_URL = os.environ.get('MAIN_SERVICE_URL', 'http://localhost:5000')
 CI_AGENT_URL = os.environ.get('CI_AGENT_URL', 'http://localhost:9001')
 HELM_AGENT_URL = os.environ.get('HELM_AGENT_URL', 'http://localhost:9002')
 DEPLOY_AGENT_URL = os.environ.get('DEPLOY_AGENT_URL', 'http://localhost:9003')
 
-# Monitoring settings
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
-ENABLE_PROMETHEUS = os.environ.get('ENABLE_PROMETHEUS', 'True').lower() == 'true'
+# Jira integration
+JIRA_URL = os.environ.get('JIRA_URL', 'https://your-domain.atlassian.net')
+JIRA_USERNAME = os.environ.get('JIRA_USERNAME', '')
+JIRA_API_TOKEN = os.environ.get('JIRA_API_TOKEN', '')
 
-# Simulation mode settings
-SIMULATION_MODE = os.environ.get('SIMULATION_MODE', 'False').lower() == 'true'
-SIMULATION_INTERVAL = int(os.environ.get('SIMULATION_INTERVAL', '30'))  # In seconds
-SIMULATION_EVENT_COUNT = int(os.environ.get('SIMULATION_EVENT_COUNT', '3'))  # Number of events per interval
+# AI providers (Primary provider is the first available in this order)
+# Options: 'openai', 'gemini', 'other_llm'
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai')
+
+# OpenAI
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024. Do not change this unless explicitly requested by the user
+OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE', '0.1'))
+OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS', '2000'))
+
+# Google Gemini
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-pro')
+GEMINI_URL = os.environ.get('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent')
+GEMINI_TEMPERATURE = float(os.environ.get('GEMINI_TEMPERATURE', '0.1'))
+GEMINI_MAX_TOKENS = int(os.environ.get('GEMINI_MAX_TOKENS', '2000'))
+
+# Other LLM (e.g., local deployment, Anthropic, etc.)
+OTHER_LLM_URL = os.environ.get('OTHER_LLM_URL', 'http://localhost:11434/api/generate')  # Default for Ollama
+OTHER_LLM_MODEL = os.environ.get('OTHER_LLM_MODEL', 'llama3')
+OTHER_LLM_API_KEY = os.environ.get('OTHER_LLM_API_KEY', '')
+OTHER_LLM_TEMPERATURE = float(os.environ.get('OTHER_LLM_TEMPERATURE', '0.1'))
+OTHER_LLM_MAX_TOKENS = int(os.environ.get('OTHER_LLM_MAX_TOKENS', '2000'))
+
+# Prometheus metrics
+ENABLE_METRICS = os.environ.get('ENABLE_METRICS', 'True').lower() in ('true', '1', 't')
+METRICS_PORT = int(os.environ.get('METRICS_PORT', 8000))
+
+# Feature flags
+ENABLE_JIRA_INTEGRATION = os.environ.get('ENABLE_JIRA_INTEGRATION', 'False').lower() in ('true', '1', 't')
+ENABLE_AUTHENTICATION = os.environ.get('ENABLE_AUTHENTICATION', 'False').lower() in ('true', '1', 't')
+
+# Simulation mode
+SIMULATION_MODE = os.environ.get('SIMULATION_MODE', 'False').lower() in ('true', '1', 't')
+SIMULATION_INTERVAL = int(os.environ.get('SIMULATION_INTERVAL', 30))  # seconds
+SIMULATION_EVENT_COUNT = int(os.environ.get('SIMULATION_EVENT_COUNT', 3))  # events per interval
