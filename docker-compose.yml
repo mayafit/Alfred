@@ -1,8 +1,9 @@
+
 version: '3.8'
 
 services:
   devops_service:
-    image: alfred/devops-service:latest  # Replace with your image name
+    image: mayafit/alfred-devops-service:latest
     ports:
       - "5000:5000"
     environment:
@@ -37,7 +38,7 @@ services:
         condition: service_healthy
 
   ci_agent:
-    image: alfred/ci-agent:latest  # Replace with your image name
+    image: mayafit/alfred-ci-agent:latest
     ports:
       - "9001:9001"
     volumes:
@@ -59,7 +60,7 @@ services:
         condition: service_healthy
 
   helm_agent:
-    image: alfred/helm-agent:latest  # Replace with your image name
+    image: mayafit/alfred-helm-agent:latest
     ports:
       - "9002:9002"
     volumes:
@@ -81,7 +82,7 @@ services:
         condition: service_healthy
 
   deploy_agent:
-    image: alfred/deploy-agent:latest  # Replace with your image name
+    image: mayafit/alfred-deploy-agent:latest
     ports:
       - "9003:9003"
     volumes:
