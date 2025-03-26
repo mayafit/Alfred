@@ -110,8 +110,15 @@ Example valid output:
                 logger.info(f"Successfully parsed description with AI: {result}")
                 return result
             except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse AI response as JSON: {str(e)}")
-                return self._parse_description_fallback(description)
+                # Try to extract JSON from the text response
+                json_text = self._extract_json_from_text(response)
+                try:
+                    result = json.loads(json_text)
+                    logger.info(f"Successfully extracted and parsed JSON from AI response")
+                    return result
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse AI response as JSON: {str(e)}")
+                    return self._parse_description_fallback(description)
 
         except Exception as e:
             logger.error(f"Error using AI service: {str(e)}", exc_info=True)

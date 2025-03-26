@@ -9,15 +9,37 @@ services:
     environment:
       - FLASK_APP=app.py
       - PYTHONUNBUFFERED=1
+      # Jira Configuration
       - JIRA_URL=${JIRA_URL}
       - JIRA_EMAIL=${JIRA_EMAIL}
       - JIRA_API_TOKEN=${JIRA_API_TOKEN}
+      # LLM Provider Selection
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      # OpenAI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE:-0.2}
+      - OPENAI_MAX_TOKENS=${OPENAI_MAX_TOKENS:-1000}
+      # Google Gemini Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-pro}
+      - GEMINI_URL=${GEMINI_URL}
+      - GEMINI_TEMPERATURE=${GEMINI_TEMPERATURE:-0.2}
+      - GEMINI_MAX_TOKENS=${GEMINI_MAX_TOKENS:-1000}
+      # Other LLM Configuration
+      - OTHER_LLM_URL=${OTHER_LLM_URL}
+      - OTHER_LLM_API_KEY=${OTHER_LLM_API_KEY}
+      - OTHER_LLM_TEMPERATURE=${OTHER_LLM_TEMPERATURE:-0.2}
+      - OTHER_LLM_MAX_TOKENS=${OTHER_LLM_MAX_TOKENS:-1000}
+      # Legacy AI Service Configuration (for backward compatibility)
       - LLAMA_SERVER_URL=${LLAMA_SERVER_URL}
       - AI_SERVICE_URL=${AI_SERVICE_URL}
       - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN}
+      # Agent URLs
       - CI_AGENT_URL=http://ci_agent:9001
       - HELM_AGENT_URL=http://helm_agent:9002
       - DEPLOY_AGENT_URL=http://deploy_agent:9003
+      # Application Configuration
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=False
       - DATABASE_URL=${ENV_DATABASE_URL}

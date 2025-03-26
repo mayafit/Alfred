@@ -5,15 +5,23 @@ An automated DevOps service that leverages AI agents to streamline Jira ticket p
 ## Overview
 
 This service automates DevOps tasks by:
-1. Processing task descriptions using AI to extract actionable tasks
+1. Processing task descriptions using AI (multiple providers supported) to extract actionable tasks
 2. Routing tasks to specialized AI agents (CI, Helm, Deploy) for execution
 3. Providing feedback on task execution results
+
+### Supported AI Providers
+- OpenAI (GPT-4o) - Default provider for high-quality task analysis
+- Google Gemini - Alternative provider with strong performance
+- Custom LLM deployments - Support for self-hosted or alternative models
 
 ## Prerequisites
 
 - Docker and Docker Compose (for deployment)
-- Llama server running (default: http://localhost:  )
-- Jira account with API access (optional)
+- AI Provider credentials:
+  - OpenAI API key (default), or
+  - Google Gemini API key, or
+  - Other LLM API endpoint access
+- Jira account with API access (optional for webhook integration)
 
 ## Environment Variables
 
@@ -25,8 +33,33 @@ JIRA_URL=https://your-domain.atlassian.net
 JIRA_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-jira-api-token
 
-# Llama Server Configuration
+# LLM Provider Selection
+# Options: "openai", "gemini", "other"
+LLM_PROVIDER=openai
+
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4o
+OPENAI_TEMPERATURE=0.2
+OPENAI_MAX_TOKENS=1000
+
+# Google Gemini Configuration
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-1.5-pro
+GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent
+GEMINI_TEMPERATURE=0.2
+GEMINI_MAX_TOKENS=1000
+
+# Other LLM Configuration (e.g., local Llama)
+OTHER_LLM_URL=http://localhost:11434/api/generate
+OTHER_LLM_API_KEY=your-other-llm-api-key
+OTHER_LLM_TEMPERATURE=0.2
+OTHER_LLM_MAX_TOKENS=1000
+
+# Legacy AI Service Configuration (for backward compatibility)
 LLAMA_SERVER_URL=http://localhost:11434
+AI_SERVICE_URL=http://your-ai-service-url
+AI_SERVICE_TOKEN=your-ai-service-token
 
 # Agent Configuration
 CI_AGENT_URL=http://ci-agent-url
