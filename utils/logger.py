@@ -1,7 +1,5 @@
 import logging
 import sys
-from functools import wraps
-from flask import request, session
 import traceback
 
 def setup_logger():

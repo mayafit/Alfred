@@ -73,6 +73,37 @@
                 </div>
             </div>
         </div>
+        
+        <!-- System Event Log -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>System Event Log</span>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary" id="refresh-events">Refresh</button>
+                            <button class="btn btn-sm btn-outline-secondary" id="clear-events">Clear</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="event-log" class="border p-2 bg-dark" style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
+                            {% for event in system_events %}
+                            <div class="event-entry mb-1 pb-1 border-bottom border-secondary">
+                                <div class="d-flex justify-content-between">
+                                    <span class="event-timestamp text-muted">{{ event.timestamp }}</span>
+                                    <span class="event-service badge bg-secondary">{{ event.service }}</span>
+                                </div>
+                                <div class="d-flex">
+                                    <span class="event-type badge {% if event.event_type == 'error' %}bg-danger{% elif event.event_type == 'warning' %}bg-warning{% elif event.event_type == 'task_received' %}bg-primary{% elif event.event_type == 'ai_analysis' %}bg-info{% elif event.event_type == 'agent_triggered' %}bg-success{% else %}bg-secondary{% endif %} me-2">{{ event.event_type }}</span>
+                                    <span class="event-description">{{ event.description }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Task History -->
         <div class="row mt-4">
@@ -126,6 +157,31 @@
                 .then(data => updateDashboard(data));
         }, 30000);
 
+        // Auto-refresh event log every 10 seconds
+        setInterval(() => {
+            fetch('/api/dashboard/events')
+                .then(response => response.json())
+                .then(data => updateEventLog(data));
+        }, 10000);
+
+        // Initialize event log
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add event listeners for the buttons
+            document.getElementById('refresh-events').addEventListener('click', () => {
+                fetch('/api/dashboard/events')
+                    .then(response => response.json())
+                    .then(data => updateEventLog(data));
+            });
+
+            document.getElementById('clear-events').addEventListener('click', () => {
+                document.getElementById('event-log').innerHTML = '';
+            });
+
+            // Initial scroll to bottom of event log
+            const eventLog = document.getElementById('event-log');
+            eventLog.scrollTop = eventLog.scrollHeight;
+        });
+
         function updateDashboard(data) {
             // Update services status
             const servicesStatus = document.getElementById('services-status');
@@ -150,6 +206,52 @@
                     <small class="text-body-secondary">Status: ${task.status}</small>
                 </div>
             `).join('');
+            
+            // Update system events if included in metrics response
+            if (data.system_events) {
+                updateEventLog(data);
+            }
+        }
+        
+        function updateEventLog(data) {
+            if (!data.system_events || data.system_events.length === 0) return;
+            
+            const eventLog = document.getElementById('event-log');
+            // Keep track of scroll position to determine if we should auto-scroll
+            const isScrolledToBottom = eventLog.scrollHeight - eventLog.clientHeight <= eventLog.scrollTop + 10;
+            
+            // Generate HTML for new events
+            const eventsHtml = data.system_events.map(event => `
+                <div class="event-entry mb-1 pb-1 border-bottom border-secondary">
+                    <div class="d-flex justify-content-between">
+                        <span class="event-timestamp text-muted">${event.timestamp}</span>
+                        <span class="event-service badge bg-secondary">${event.service}</span>
+                    </div>
+                    <div class="d-flex">
+                        <span class="event-type badge ${getBadgeClassForEventType(event.event_type)} me-2">${event.event_type}</span>
+                        <span class="event-description">${event.description}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Update the event log
+            eventLog.innerHTML = eventsHtml;
+            
+            // Auto-scroll if the user was already at the bottom
+            if (isScrolledToBottom) {
+                eventLog.scrollTop = eventLog.scrollHeight;
+            }
+        }
+        
+        function getBadgeClassForEventType(eventType) {
+            switch (eventType) {
+                case 'error': return 'bg-danger';
+                case 'warning': return 'bg-warning';
+                case 'task_received': return 'bg-primary';
+                case 'ai_analysis': return 'bg-info';
+                case 'agent_triggered': return 'bg-success';
+                default: return 'bg-secondary';
+            }
         }
     </script>
 </body>

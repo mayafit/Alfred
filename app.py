@@ -6,7 +6,7 @@ from services.jira_service import JiraService
 from services.ai_service import AIService
 from services.agent_router import AgentRouter
 from utils.validators import validate_jira_webhook, validate_ai_response
-from utils.logger import logger
+from utils.logger import logger, log_system_event
 import config
 import os
 from flask_sqlalchemy import SQLAlchemy
@@ -131,9 +131,23 @@ def test_analysis():
         # Log request details
         logger.info("[test_analysis:129] Starting test analysis request")
         logger.debug(f"[test_analysis:130] Request headers: {dict(request.headers)}")
+        
+        # Log system event for task received
+        log_system_event(
+            event_type="task_received",
+            service="main",
+            description="Test analysis request received",
+            event_data={"endpoint": "/test/analyze", "method": "POST"}
+        )
 
         if not request.is_json:
             logger.error("[test_analysis:133] Request content-type is not application/json")
+            log_system_event(
+                event_type="error",
+                service="main",
+                description="Invalid request format - not JSON",
+                event_data={"endpoint": "/test/analyze"}
+            )
             return jsonify({'error': 'Request must be JSON'}), 400
 
         data = request.json
@@ -142,11 +156,24 @@ def test_analysis():
         description = data.get('description')
         if not description:
             logger.error("[test_analysis:141] Missing required field 'description' in request")
+            log_system_event(
+                event_type="error",
+                service="main",
+                description="Missing required field 'description'",
+                event_data={"endpoint": "/test/analyze"}
+            )
             return jsonify({'error': 'Description is required'}), 400
 
         # Parse description using AI service
         logger.info(f"[test_analysis:145] Sending description to AI service (length: {len(description)})")
         logger.debug(f"[test_analysis:146] Description content: {description[:200]}...")
+        
+        log_system_event(
+            event_type="ai_analysis",
+            service="main",
+            description="Sending task description to AI service for analysis",
+            event_data={"description_length": len(description)}
+        )
         
         ai_response = ai_service.parse_description(description)
         logger.debug(f"[test_analysis:149] AI Response raw: {ai_response}")
@@ -154,6 +181,12 @@ def test_analysis():
         if not ai_response:
             error_message = "Unable to parse the task description"
             logger.error(f"[test_analysis:153] AI service returned empty response for input: {description[:100]}...")
+            log_system_event(
+                event_type="error",
+                service="main",
+                description="AI service returned empty response",
+                event_data={"description_preview": description[:100]}
+            )
             return jsonify({'status': 'error', 'message': error_message}), 400
 
         # Process tasks with appropriate agents
@@ -161,9 +194,26 @@ def test_analysis():
         logger.info(f"[test_analysis:158] Processing {task_count} tasks from AI response")
         logger.debug(f"[test_analysis:159] Tasks to process: {ai_response.get('tasks', [])}")
         
+        log_system_event(
+            event_type="agent_triggered",
+            service="main",
+            description=f"Processing {task_count} tasks from AI analysis",
+            event_data={"task_count": task_count, "task_types": [task.get('type') for task in ai_response.get('tasks', [])]}
+        )
+        
         results = agent_router.process_tasks(ai_response['tasks'])
-        logger.info(f"[test_analysis:162] Task processing complete. Success: {len(results.get('success', []))}, Failed: {len(results.get('failed', []))}")
+        success_count = len(results.get('success', []))
+        failed_count = len(results.get('failed', []))
+        
+        logger.info(f"[test_analysis:162] Task processing complete. Success: {success_count}, Failed: {failed_count}")
         logger.debug(f"[test_analysis:163] Detailed results: {results}")
+        
+        log_system_event(
+            event_type="task_completed",
+            service="main",
+            description=f"Task processing complete. Success: {success_count}, Failed: {failed_count}",
+            event_data={"success_count": success_count, "failed_count": failed_count}
+        )
 
         return jsonify({
             'status': 'success',
@@ -173,9 +223,18 @@ def test_analysis():
 
     except Exception as e:
         import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"[test_analysis:172] Error processing request: {str(e)}")
-        logger.error(f"[test_analysis:173] Stack trace: {traceback.format_exc()}")
+        logger.error(f"[test_analysis:173] Stack trace: {error_trace}")
         logger.error(f"[test_analysis:174] Request data: {request.get_data()}")
+        
+        log_system_event(
+            event_type="error",
+            service="main",
+            description=f"Exception in test_analysis: {str(e)}",
+            event_data={"error_trace": error_trace}
+        )
+        
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/webhook/jira', methods=['POST'])
@@ -186,27 +245,65 @@ def jira_webhook():
     """
     try:
         logger.info("Received Jira webhook request")
+        
+        # Log system event for Jira webhook received
+        log_system_event(
+            event_type="webhook_received",
+            service="main",
+            description="Jira webhook request received",
+            event_data={"endpoint": "/webhook/jira", "method": "POST"}
+        )
+        
         payload = request.json
         
         # Log and validate webhook payload
         logger.debug(f"Validating webhook payload: {payload}")
         if not validate_jira_webhook(payload):
             logger.error("Invalid webhook payload received")
+            log_system_event(
+                event_type="error",
+                service="main",
+                description="Invalid Jira webhook payload",
+                event_data={"endpoint": "/webhook/jira"}
+            )
             return jsonify({'error': 'Invalid webhook payload'}), 400
 
         issue_key = payload['issue']['key']
         description = payload['issue']['fields']['description']
         logger.info(f"Processing Jira issue {issue_key}")
         logger.debug(f"Issue description: {description}")
+        
+        log_system_event(
+            event_type="task_received",
+            service="main",
+            description=f"Processing Jira issue {issue_key}",
+            event_data={"issue_key": issue_key, "description_length": len(description)}
+        )
 
         # Parse description using AI service
         logger.info(f"Sending description to AI service for parsing")
+        
+        log_system_event(
+            event_type="ai_analysis",
+            service="main",
+            description=f"Sending issue {issue_key} description to AI service for analysis",
+            event_data={"issue_key": issue_key, "description_length": len(description)}
+        )
+        
         ai_response = ai_service.parse_description(description)
         logger.debug(f"AI service response: {ai_response}")
 
         if not ai_response or not validate_ai_response(ai_response):
             logger.error(f"AI service failed to parse description for issue {issue_key}")
             error_message = "Unable to parse the task description. Please ensure it follows the required format."
+            
+            log_system_event(
+                event_type="error",
+                service="main",
+                description=f"AI service failed to parse description for issue {issue_key}",
+                event_data={"issue_key": issue_key, "error": "Invalid or empty AI response"}
+            )
+            
             jira_service.add_comment(issue_key, error_message)
             return jsonify({'status': 'error', 'message': error_message}), 400
 
@@ -217,8 +314,17 @@ def jira_webhook():
             logger.error(f"AI service returned error for {issue_key}: {error_message}")
 
             # Log additional details if available
+            log_data = {"issue_key": issue_key, "error_message": error_message, "is_system_error": is_system_error}
             if is_system_error and 'log_details' in ai_response:
                 logger.error(f"System error details for {issue_key}: {ai_response['log_details']}")
+                log_data["log_details"] = ai_response['log_details']
+            
+            log_system_event(
+                event_type="error",
+                service="main",
+                description=f"AI service error for issue {issue_key}: {error_message}",
+                event_data=log_data
+            )
 
             jira_service.add_comment(issue_key, error_message)
             if is_system_error:
@@ -227,7 +333,20 @@ def jira_webhook():
             return jsonify({'status': 'error', 'message': error_message}), 400
 
         # Process tasks with appropriate agents
-        logger.info(f"Processing {len(ai_response['tasks'])} tasks for issue {issue_key}")
+        task_count = len(ai_response['tasks'])
+        logger.info(f"Processing {task_count} tasks for issue {issue_key}")
+        
+        log_system_event(
+            event_type="agent_triggered",
+            service="main",
+            description=f"Processing {task_count} tasks for issue {issue_key}",
+            event_data={
+                "issue_key": issue_key, 
+                "task_count": task_count,
+                "task_types": [task.get('type') for task in ai_response['tasks']]
+            }
+        )
+        
         results = agent_router.process_tasks(ai_response['tasks'])
         logger.debug(f"Task processing results: {results}")
 
@@ -235,6 +354,19 @@ def jira_webhook():
         success_count = len(results['success'])
         failed_count = len(results['failed'])
         logger.info(f"Task processing complete. Success: {success_count}, Failed: {failed_count}")
+        
+        log_system_event(
+            event_type="task_completed",
+            service="main",
+            description=f"Task processing complete for issue {issue_key}. Success: {success_count}, Failed: {failed_count}",
+            event_data={
+                "issue_key": issue_key,
+                "success_count": success_count, 
+                "failed_count": failed_count,
+                "success_tasks": [s.get('task') for s in results.get('success', [])],
+                "failed_tasks": [f.get('task') for f in results.get('failed', [])]
+            }
+        )
 
         status_message = f"Processed {success_count + failed_count} tasks:\n"
         status_message += f"- {success_count} tasks completed successfully\n"
@@ -246,6 +378,13 @@ def jira_webhook():
             for failed in results['failed']:
                 logger.error(f"Task failure in {issue_key}: {failed['task']} - {failed['error']}")
                 status_message += f"- Task: {failed['task']}\n  Error: {failed['error']}\n"
+                
+                log_system_event(
+                    event_type="error",
+                    service="main",
+                    description=f"Task failure in issue {issue_key}: {failed['task']}",
+                    event_data={"issue_key": issue_key, "task": failed['task'], "error": failed['error']}
+                )
 
         logger.info(f"Adding status comment to issue {issue_key}")
         jira_service.add_comment(issue_key, status_message)
@@ -253,11 +392,33 @@ def jira_webhook():
         if failed_count == 0:
             logger.info(f"All tasks successful, updating issue {issue_key} status to Done")
             jira_service.update_issue_status(issue_key, "Done")
+            
+            log_system_event(
+                event_type="jira_update",
+                service="main",
+                description=f"Updated issue {issue_key} status to Done",
+                event_data={"issue_key": issue_key, "new_status": "Done"}
+            )
         else:
             logger.warning(f"Some tasks failed, updating issue {issue_key} status to Failed")
             jira_service.update_issue_status(issue_key, "Failed")
+            
+            log_system_event(
+                event_type="jira_update",
+                service="main",
+                description=f"Updated issue {issue_key} status to Failed",
+                event_data={"issue_key": issue_key, "new_status": "Failed"}
+            )
 
         logger.info(f"Webhook processing complete for issue {issue_key}")
+        
+        log_system_event(
+            event_type="webhook_completed",
+            service="main",
+            description=f"Webhook processing complete for issue {issue_key}",
+            event_data={"issue_key": issue_key, "success": True}
+        )
+        
         return jsonify({
             'status': 'success',
             'message': 'Tasks processed',
@@ -265,7 +426,17 @@ def jira_webhook():
         })
 
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
+        
+        log_system_event(
+            event_type="error",
+            service="main",
+            description=f"Exception in jira_webhook: {str(e)}",
+            event_data={"error_trace": error_trace}
+        )
+        
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/test/ci', methods=['POST'])
@@ -275,16 +446,36 @@ def test_ci():
     Allows direct testing of CI pipeline setup without Jira integration
     """
     try:
+        # Log system event for CI test request received
+        log_system_event(
+            event_type="task_received",
+            service="main",
+            description="CI pipeline creation test request received",
+            event_data={"endpoint": "/test/ci", "method": "POST"}
+        )
+        
         if not request.is_json:
+            log_system_event(
+                event_type="error",
+                service="main",
+                description="Invalid request format - not JSON",
+                event_data={"endpoint": "/test/ci"}
+            )
             return jsonify({'error': 'Request must be JSON'}), 400
 
         data = request.json
         repository = data.get('repository')
         if not repository:
+            log_system_event(
+                event_type="error",
+                service="main",
+                description="Missing required field 'repository'",
+                event_data={"endpoint": "/test/ci"}
+            )
             return jsonify({'error': 'Repository URL is required'}), 400
 
         logger.info(f"Testing CI pipeline creation for repository: {repository}")
-
+        
         # Create a CI task structure
         task = {
             "type": "ci",
@@ -295,18 +486,49 @@ def test_ci():
                 "build_steps": data.get('build_steps', ["test", "lint", "build"])
             }
         }
+        
+        log_system_event(
+            event_type="agent_triggered",
+            service="main",
+            description=f"Directly triggering CI agent for repository: {repository}",
+            event_data={
+                "repository": repository,
+                "branch": data.get('branch', 'main'),
+                "build_steps": data.get('build_steps', ["test", "lint", "build"])
+            }
+        )
 
         # Route the task directly to CI agent
         logger.info("Routing task to CI agent")
         result = agent_router.route_task('ci', task)
+        
         if not result:
             logger.error("Failed to process CI task - no response from agent")
+            log_system_event(
+                event_type="error",
+                service="main",
+                description=f"CI agent failed to process task for repository: {repository}",
+                event_data={"repository": repository, "error": "No response from agent"}
+            )
             return jsonify({
                 'status': 'error',
                 'message': 'Failed to process CI task'
             }), 500
 
         logger.info(f"CI agent response: {result}")
+        
+        log_system_event(
+            event_type="task_completed",
+            service="main",
+            description=f"CI pipeline created for repository: {repository}",
+            event_data={
+                "repository": repository,
+                "success": True,
+                "ci_status": result.get('status'),
+                "jenkinsfile_generated": result.get('jenkinsfile_generated', False)
+            }
+        )
+        
         return jsonify({
             'status': 'success',
             'message': 'CI pipeline created',
@@ -314,7 +536,17 @@ def test_ci():
         })
 
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"Error processing CI test request: {str(e)}")
+        
+        log_system_event(
+            event_type="error",
+            service="main",
+            description=f"Exception in test_ci: {str(e)}",
+            event_data={"error_trace": error_trace}
+        )
+        
         return jsonify({
             'error': 'Internal server error',
             'details': str(e)
