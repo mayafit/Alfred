@@ -60,9 +60,9 @@ METRICS_PORT = int(os.environ.get('METRICS_PORT', 8000))
 ENABLE_JIRA_INTEGRATION = os.environ.get('ENABLE_JIRA_INTEGRATION', 'False').lower() in ('true', '1', 't')
 ENABLE_AUTHENTICATION = os.environ.get('ENABLE_AUTHENTICATION', 'False').lower() in ('true', '1', 't')
 
-# Simulation mode
+# Simulation mode - disabled by default
 SIMULATION_MODE = os.environ.get('SIMULATION_MODE', 'False').lower() in ('true', '1', 't')
 SIMULATION_INTERVAL = int(os.environ.get('SIMULATION_INTERVAL', 30))  # seconds
 SIMULATION_EVENT_COUNT = int(os.environ.get('SIMULATION_EVENT_COUNT', 3))  # events per interval
-SIMULATION_JIRA_EVENTS = os.environ.get('SIMULATION_JIRA_EVENTS', 'True').lower() in ('true', '1', 't')  # Generate Jira webhook events
+SIMULATION_JIRA_EVENTS = os.environ.get('SIMULATION_JIRA_EVENTS', 'False').lower() in ('true', '1', 't')  # Generate Jira webhook events
 SIMULATION_JIRA_INTERVAL = int(os.environ.get('SIMULATION_JIRA_INTERVAL', 60))  # seconds between Jira events

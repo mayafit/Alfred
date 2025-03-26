@@ -178,8 +178,4 @@ def register_routes(app):
     """Register the simulation routes with the Flask app"""
     app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
     
-    # Start simulation if enabled in config
-    if config.SIMULATION_MODE:
-        # Use app.app_context() to ensure database access works correctly
-        with app.app_context():
-            start_simulation()
+    # Simulation is disabled by default and must be enabled explicitly through the UI

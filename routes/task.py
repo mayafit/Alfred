@@ -85,8 +85,9 @@ def create_task():
                 if len(summary) < len(prompt.split('\n')[0]):
                     summary += "..."
                 
+                # Always use the default project key "GTMS" for Jira tickets
                 jira_key = jira_service.create_issue(
-                    project_key=project.replace(" ", "_").upper(),
+                    project_key="GTMS",
                     summary=summary,
                     description=prompt,
                     issue_type="Task",
