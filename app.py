@@ -52,9 +52,9 @@ def create_app():
     }
     app.secret_key = os.environ.get("SESSION_SECRET")
 
-    # Set up Prometheus monitoring
-    metrics = PrometheusMetrics(app)
-    metrics.info('app_info', 'Application info', version='1.0.0')
+    # Set up Prometheus monitoring with unique registry
+    metrics = PrometheusMetrics(app, registry_name='main_app_registry')
+    metrics.info('app_info', 'Application info', version='1.0.0', service='main_app')
 
     # Initialize database
     db.init_app(app)
