@@ -11,6 +11,7 @@ from services.simulator import (
     start_simulation, 
     stop_simulation,
     generate_simulated_workflow,
+    simulate_jira_webhook,
     simulation_running
 )
 import config
@@ -88,12 +89,34 @@ def configure_simulation():
         os.environ['SIMULATION_EVENT_COUNT'] = str(event_count)
         config.SIMULATION_EVENT_COUNT = event_count
     
+    # Update Jira webhook simulation settings if provided
+    if 'jira_events_enabled' in data:
+        jira_enabled = bool(data['jira_events_enabled'])
+        os.environ['SIMULATION_JIRA_EVENTS'] = str(jira_enabled)
+        config.SIMULATION_JIRA_EVENTS = jira_enabled
+    
+    # Update Jira webhook interval if provided
+    if 'jira_interval' in data:
+        jira_interval = int(data['jira_interval'])
+        if jira_interval < 10:
+            jira_interval = 10  # Minimum interval of 10 seconds
+        
+        os.environ['SIMULATION_JIRA_INTERVAL'] = str(jira_interval)
+        config.SIMULATION_JIRA_INTERVAL = jira_interval
+    
+    # If simulation is running, restart it to apply the new configuration
+    if simulation_running:
+        stop_simulation()
+        start_simulation()
+    
     return jsonify({
         "status": "success",
         "message": "Simulation configuration updated",
         "config": {
             "interval": config.SIMULATION_INTERVAL,
-            "event_count": config.SIMULATION_EVENT_COUNT
+            "event_count": config.SIMULATION_EVENT_COUNT,
+            "jira_events_enabled": config.SIMULATION_JIRA_EVENTS,
+            "jira_interval": config.SIMULATION_JIRA_INTERVAL
         }
     })
 
@@ -126,6 +149,30 @@ def trigger_simulation():
         "status": "success",
         "message": f"Triggered simulation with {len(events)} events"
     })
+
+@simulation_bp.route('/trigger/jira', methods=['POST'])
+def trigger_jira_webhook():
+    """Manually trigger a simulated Jira webhook"""
+    if not config.SIMULATION_MODE:
+        return jsonify({
+            "status": "error",
+            "message": "Simulation mode is disabled"
+        }), 400
+    
+    # Send a simulated Jira webhook
+    with current_app.app_context():
+        result = simulate_jira_webhook()
+    
+    if result:
+        return jsonify({
+            "status": "success",
+            "message": "Successfully triggered Jira webhook simulation"
+        })
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "Failed to send Jira webhook. Check logs for details."
+        }), 500
 
 def register_routes(app):
     """Register the simulation routes with the Flask app"""

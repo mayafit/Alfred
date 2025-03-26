@@ -424,15 +424,19 @@ def stop_simulation():
 
 def get_simulation_status():
     """Get the current status of the simulation"""
-    global simulation_thread, simulation_running
+    global simulation_thread, simulation_jira_thread, simulation_running
     
     is_running = simulation_thread is not None and simulation_thread.is_alive()
+    jira_running = simulation_jira_thread is not None and simulation_jira_thread.is_alive()
     
     return {
         "enabled": config.SIMULATION_MODE,
         "running": is_running,
         "interval": config.SIMULATION_INTERVAL,
-        "event_count": config.SIMULATION_EVENT_COUNT
+        "event_count": config.SIMULATION_EVENT_COUNT,
+        "jira_events_enabled": config.SIMULATION_JIRA_EVENTS,
+        "jira_events_running": jira_running,
+        "jira_interval": config.SIMULATION_JIRA_INTERVAL
     }
 
 def generate_simulated_jira_webhook():
