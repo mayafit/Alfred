@@ -34,7 +34,19 @@ def create_app():
     
     # Initialize blueprint and routes
     blueprint = Blueprint('ci_agent', __name__)
-    repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
+    
+    # Use LLM provider-specific URL based on configuration
+    if config.LLM_PROVIDER == "openai" and config.OPENAI_API_KEY:
+        llm_url = "openai:" + config.OPENAI_API_KEY
+    elif config.LLM_PROVIDER == "gemini" and config.GEMINI_API_KEY:
+        llm_url = config.GEMINI_URL
+    elif config.LLM_PROVIDER == "other" and config.OTHER_LLM_URL:
+        llm_url = config.OTHER_LLM_URL
+    else:
+        # Fallback to legacy configuration
+        llm_url = config.LLAMA_SERVER_URL
+        
+    repo_analyzer = RepoAnalyzer(llm_url)
     register_routes(blueprint, repo_analyzer)
     
     # Register blueprint

@@ -9,10 +9,21 @@ from typing import Optional, Dict, Any
 import json
 
 class RepoAnalyzer:
-    def __init__(self, llama_url: str, work_dir: str = "/tmp/repos"):
-        self.llama_url = llama_url
+    def __init__(self, llm_url: str, work_dir: str = "/tmp/repos"):
+        self.llm_url = llm_url
         self.work_dir = work_dir
         self.logger = logging.getLogger(__name__)
+        
+        # Determine LLM provider from URL prefix
+        if self.llm_url.startswith("openai:"):
+            self.provider = "openai"
+            self.api_key = self.llm_url.split(":", 1)[1]
+        elif "generativelanguage.googleapis.com" in self.llm_url:
+            self.provider = "gemini"
+        else:
+            self.provider = "other"
+            
+        self.logger.info(f"Using LLM provider: {self.provider}")
 
         # Create working directory if it doesn't exist
         if not os.path.exists(work_dir):
@@ -63,8 +74,8 @@ class RepoAnalyzer:
             # Rule-based project type detection
             project_type, confidence, build_steps = self._detect_project_type(file_list)
             
-            # Only use LLM if rule-based detection has low confidence and LLM URL is available
-            if confidence < 0.7 and self.llama_url:
+            # Only use LLM if rule-based detection has low confidence
+            if confidence < 0.7:
                 llm_project_type, llm_confidence, llm_build_steps = self._analyze_with_llm(file_list)
                 
                 # Use LLM results if they have higher confidence
@@ -155,7 +166,7 @@ class RepoAnalyzer:
         Returns (project_type, confidence, build_steps)
         """
         try:
-            # Prepare prompt for Llama
+            # Common prompt for all LLM providers
             prompt = f"""You are a DevOps engineer analyzing a code repository.
 Based on the following file list, determine the project type and relevant build configuration.
 Respond with a JSON object containing:
@@ -168,10 +179,137 @@ File list:
 
 Response:"""
 
-            # Make request to Llama server
-            self.logger.debug(f"Sending analysis request to Llama")
+            # Call the appropriate provider's implementation
+            if self.provider == "openai":
+                result = self._analyze_with_openai(prompt)
+            elif self.provider == "gemini":
+                result = self._analyze_with_gemini(prompt)
+            else:
+                result = self._analyze_with_other_llm(prompt)
+
+            if not result:
+                raise ValueError("Empty response from LLM")
+
+            # Try to extract JSON from the text response
+            try:
+                # Look for JSON-like content
+                json_start = result.find('{')
+                json_end = result.rfind('}') + 1
+                
+                if json_start >= 0 and json_end > json_start:
+                    json_text = result[json_start:json_end]
+                    analysis = json.loads(json_text)
+                else:
+                    analysis = json.loads(result)
+            except json.JSONDecodeError:
+                raise ValueError(f"Failed to parse LLM response as JSON: {result}")
+
+            self.logger.info(f"LLM analysis result: {json.dumps(analysis, indent=2)}")
+
+            if not all(k in analysis for k in ["project_type", "confidence", "build_steps"]):
+                raise ValueError(f"Invalid response format from LLM: {analysis}")
+
+            return analysis["project_type"], analysis["confidence"], analysis["build_steps"]
+
+        except Exception as e:
+            self.logger.error(f"Failed to analyze with LLM: {str(e)}")
+            return "unknown", 0.0, []
+            
+    def _analyze_with_openai(self, prompt: str) -> Optional[str]:
+        """
+        Uses OpenAI to analyze the repository
+        """
+        try:
+            import openai
+            client = openai.OpenAI(api_key=self.api_key)
+            
+            self.logger.debug("Sending analysis request to OpenAI")
+            response = client.chat.completions.create(
+                model="gpt-4o",  # The newest OpenAI model, released May 13, 2024
+                messages=[
+                    {"role": "system", "content": "You are a DevOps engineer analyzing code repositories."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=1000,
+                response_format={"type": "json_object"}
+            )
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            self.logger.error(f"Error calling OpenAI: {str(e)}")
+            return None
+            
+    def _analyze_with_gemini(self, prompt: str) -> Optional[str]:
+        """
+        Uses Google Gemini to analyze the repository
+        """
+        try:
+            # Extract API key from URL if present as query parameter
+            url = self.llm_url
+            api_key = None
+            if "?key=" in url:
+                url, api_key = url.split("?key=", 1)
+                
+            self.logger.debug("Sending analysis request to Gemini")
+            
+            # Prepare request body for Google Gemini API
+            request_body = {
+                "contents": [{
+                    "parts": [
+                        {"text": prompt}
+                    ]
+                }],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 1000,
+                    "responseFormat": "JSON"
+                }
+            }
+            
+            # Headers
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            # Prepare URL with API key if available
+            request_url = url
+            if api_key:
+                request_url = f"{url}?key={api_key}"
+                
+            # Make request
             response = requests.post(
-                f"{self.llama_url}/completion",
+                request_url,
+                headers=headers,
+                json=request_body,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            # Process response
+            result = response.json()
+            
+            # Extract content from Gemini response format
+            if "candidates" in result and len(result["candidates"]) > 0:
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+                
+            self.logger.warning("Unexpected Gemini API response format")
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error calling Gemini: {str(e)}")
+            return None
+            
+    def _analyze_with_other_llm(self, prompt: str) -> Optional[str]:
+        """
+        Uses other LLM server to analyze the repository
+        """
+        try:
+            self.logger.debug(f"Sending analysis request to custom LLM at {self.llm_url}")
+            
+            # Generic format for Llama-like API
+            response = requests.post(
+                f"{self.llm_url}/completion",
                 json={
                     "prompt": prompt,
                     "temperature": 0.2,
@@ -183,20 +321,11 @@ Response:"""
 
             # Parse and validate response
             result = response.json().get("content")
-            if not result:
-                raise ValueError("Empty response from Llama")
-
-            analysis = json.loads(result)
-            self.logger.info(f"LLM analysis result: {json.dumps(analysis, indent=2)}")
-
-            if not all(k in analysis for k in ["project_type", "confidence", "build_steps"]):
-                raise ValueError("Invalid response format from Llama")
-
-            return analysis["project_type"], analysis["confidence"], analysis["build_steps"]
-
+            return result
+            
         except Exception as e:
-            self.logger.error(f"Failed to analyze with LLM: {str(e)}")
-            return "unknown", 0.0, []
+            self.logger.error(f"Error calling custom LLM: {str(e)}")
+            return None
 
     def generate_jenkins_file(self, repo_path: str, project_type: str) -> None:
         """
