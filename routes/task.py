@@ -3,18 +3,14 @@ Task routes for creating and managing direct task requests.
 These routes handle the creation of tasks directly from the UI
 rather than just through Jira webhooks.
 """
-
-from flask import Blueprint, request, jsonify, render_template, current_app
 import json
-import os
-import requests
-from datetime import datetime
+from flask import Blueprint, render_template, request, jsonify
 
+import config
+from utils.logger import log_system_event
 from services.ai_service import AIService
 from services.agent_router import AgentRouter
 from services.jira_service import JiraService
-from utils.logger import log_system_event
-import config
 
 task_bp = Blueprint('task', __name__)
 ai_service = AIService()
@@ -24,48 +20,34 @@ jira_service = JiraService()
 @task_bp.route('/', methods=['GET'])
 def task_page():
     """Render the task creation page"""
-    # List of sample projects for the dropdown
-    projects = [
-        "Go to Market Sample",
-        "E-Commerce Platform",
-        "Mobile Banking App",
-        "Customer Portal",
-        "Data Analytics Platform",
-        "Inventory Management System"
-    ]
-    
-    return render_template('task.html', projects=projects)
+    return render_template('task.html')
 
 @task_bp.route('/create', methods=['POST'])
 def create_task():
     """Process a task creation request"""
-    data = request.json
-    if not data:
-        return jsonify({"status": "error", "message": "No data provided"}), 400
-    
-    project = data.get('project', 'Go to Market Sample')
-    prompt = data.get('prompt', '')
-    
-    if not prompt:
-        return jsonify({"status": "error", "message": "No task description provided"}), 400
-    
-    # Log the task received event
-    event_data = {
-        "project": project,
-        "prompt_length": len(prompt),
-        "source": "task_page"
-    }
-    task_received_event = log_system_event(
-        event_type="task_received",
-        service="main",
-        description=f"Received direct task request for project: {project}",
-        event_data=event_data
-    )
-    
-    # Process the prompt with AI service
+    # Define prompt at a higher scope to avoid "possibly unbound" error
+    prompt = ""
     try:
-        # Log that we're starting AI analysis
-        ai_analysis_event = log_system_event(
+        # Get form data
+        prompt = request.form.get('prompt', '')
+        project = request.form.get('project', 'Go to Market Sample')
+        
+        if not prompt:
+            return jsonify({
+                "status": "error", 
+                "message": "Task description is required"
+            }), 400
+        
+        # Log task received event
+        log_system_event(
+            event_type="task_received",
+            service="main",
+            description=f"Received task request for {project}",
+            event_data={"project": project, "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt}
+        )
+        
+        # Process the prompt with AI service
+        log_system_event(
             event_type="ai_analysis",
             service="main",
             description="Analyzing task description with AI service",
@@ -74,11 +56,11 @@ def create_task():
         
         parsed_data = ai_service.parse_description(prompt)
         
-        if not parsed_data:
+        if not parsed_data or 'tasks' not in parsed_data or not parsed_data['tasks']:
             log_system_event(
                 event_type="error",
                 service="main",
-                description="Failed to parse task description with AI service",
+                description="Failed to parse task description",
                 event_data={"prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt}
             )
             return jsonify({

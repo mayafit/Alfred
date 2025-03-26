@@ -73,7 +73,7 @@ class JiraService:
             return False
             
     def create_issue(self, project_key: str, summary: str, description: str, 
-                     issue_type: str = "Task", labels: List[str] = None) -> Optional[str]:
+                     issue_type: str = "Task", labels: list = None) -> Optional[str]:
         """
         Creates a new Jira issue
         
@@ -105,7 +105,7 @@ class JiraService:
             }
             
             # Add labels if provided
-            if labels:
+            if labels is not None:
                 issue_dict['labels'] = labels
                 
             # Create the issue
