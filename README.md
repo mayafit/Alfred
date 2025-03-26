@@ -218,6 +218,81 @@ System errors are logged for administrator review while user-friendly messages a
 2. Create a feature branch
 3. Submit a pull request
 
+## Testing the System
+
+### Running in Test Mode
+
+1. Start all services using the test runner:
+```bash
+python run_services.py
+```
+
+This will start:
+- Main application on port 5000
+- CI Agent on port 9001
+- Helm Agent on port 9002
+- Deploy Agent on port 9003
+
+### Testing with Postman
+
+#### Testing CI Agent
+Send a POST request to `http://0.0.0.0:9001/execute` with payload:
+```json
+{
+  "repository": {
+    "url": "git@github.com:org/test-service.git",
+    "branch": "main"
+  }
+}
+```
+
+#### Testing Helm Agent
+Send a POST request to `http://0.0.0.0:9002/execute` with payload:
+```json
+{
+  "parameters": {
+    "repository": "git@github.com:org/service.git",
+    "service_ports": [80, 443],
+    "environment_variables": {
+      "NODE_ENV": "production",
+      "PORT": "8080"
+    }
+  }
+}
+```
+
+#### Testing Deploy Agent
+Send a POST request to `http://0.0.0.0:9003/execute` with payload:
+```json
+{
+  "parameters": {
+    "repository": "git@github.com:org/service.git",
+    "namespace": "production"
+  }
+}
+```
+
+### Using the Test Script
+
+For CI agent testing, use the provided test script:
+```bash
+python test_ci_agent.py --repo git@github.com:org/test-service.git --branch main
+```
+
+Additional test script options:
+- `--url`: Specify agent URL (default: http://0.0.0.0:9001)
+- `--health`: Run health check only
+- `--branch`: Specify git branch (default: main)
+
+### Health Checks
+
+Each agent provides a health endpoint at `/health`. Example:
+```bash
+curl http://0.0.0.0:9001/health  # CI Agent
+curl http://0.0.0.0:9002/health  # Helm Agent
+curl http://0.0.0.0:9003/health  # Deploy Agent
+```
+
 ## License
 
 MIT License - see LICENSE file for details
