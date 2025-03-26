@@ -1,2 +1,1 @@
-
-# Initialize utils package
+# Agent utilities package
