@@ -50,3 +50,8 @@ DEPLOY_AGENT_URL = os.environ.get('DEPLOY_AGENT_URL', 'http://localhost:9003')
 # Monitoring settings
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
 ENABLE_PROMETHEUS = os.environ.get('ENABLE_PROMETHEUS', 'True').lower() == 'true'
+
+# Simulation mode settings
+SIMULATION_MODE = os.environ.get('SIMULATION_MODE', 'False').lower() == 'true'
+SIMULATION_INTERVAL = int(os.environ.get('SIMULATION_INTERVAL', '30'))  # In seconds
+SIMULATION_EVENT_COUNT = int(os.environ.get('SIMULATION_EVENT_COUNT', '3'))  # Number of events per interval
