@@ -38,7 +38,13 @@ Example valid output:
 
         # Initialize AI client based on configuration
         try:
+            logger.info(f"Initializing AI service with provider: {config.LLM_PROVIDER}")
             self.provider = config.LLM_PROVIDER.lower()
+            
+            logger.debug(f"Selected provider: {self.provider}")
+            logger.debug(f"OpenAI API Key present: {bool(config.OPENAI_API_KEY)}")
+            logger.debug(f"Gemini API Key present: {bool(config.GEMINI_API_KEY)}")
+            logger.debug(f"Other LLM URL present: {bool(config.OTHER_LLM_URL)}")
             
             if self.provider == "openai" and config.OPENAI_API_KEY:
                 # Ensure OpenAI module is available
@@ -106,7 +112,8 @@ Example valid output:
                     raise ValueError("No AI provider configuration found")
                 
         except Exception as e:
-            logger.warning(f"Could not initialize AI client: {str(e)}")
+            logger.error(f"Could not initialize AI client: {str(e)}", exc_info=True)
+            logger.warning("AI client initialization failed, will use fallback parser")
             self.ai_available = False
 
     def parse_description(self, description: str) -> Optional[Dict[str, Any]]:
