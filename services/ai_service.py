@@ -70,9 +70,9 @@ Example valid output:
                 logger.debug(f"Successfully initialized Google Gemini client")
                 self.ai_available = True
                 
-            elif self.provider == "other" and config.OTHER_LLM_URL and config.OTHER_LLM_API_KEY:
+            elif self.provider == "other" and config.OTHER_LLM_URL:
                 self.other_llm_url = config.OTHER_LLM_URL
-                self.other_llm_api_key = config.OTHER_LLM_API_KEY
+                self.other_llm_api_key = config.OTHER_LLM_API_KEY  # Can be None
                 logger.debug(f"Successfully initialized other LLM client at {config.OTHER_LLM_URL}")
                 self.ai_available = True
                 
@@ -259,10 +259,9 @@ Example valid output:
             logger.debug(f"Sending request to custom LLM server")
 
             # Make request to LLM server
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.other_llm_api_key}"
-            }
+            headers = {"Content-Type": "application/json"}
+            if self.other_llm_api_key:
+                headers["Authorization"] = f"Bearer {self.other_llm_api_key}"
             
             response = requests.post(
                 self.other_llm_url,
