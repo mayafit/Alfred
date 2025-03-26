@@ -267,7 +267,8 @@ Example valid output:
                 self.other_llm_url,
                 headers=headers,
                 json=request_body,
-                timeout=30
+                timeout=120,
+                verify=False  # For local LM Studio
             )
             response.raise_for_status()
             

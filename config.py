@@ -33,7 +33,7 @@ GEMINI_TEMPERATURE = float(os.environ.get('GEMINI_TEMPERATURE', '0.2'))
 GEMINI_MAX_TOKENS = int(os.environ.get('GEMINI_MAX_TOKENS', '1000'))
 
 # Other LLM configuration (like local Llama, etc.)
-OTHER_LLM_URL = os.environ.get('OTHER_LLM_URL')
+OTHER_LLM_URL = os.environ.get('OTHER_LLM_URL', 'http://0.0.0.0:1234/v1/chat/completions')
 OTHER_LLM_API_KEY = os.environ.get('OTHER_LLM_API_KEY')
 OTHER_LLM_TEMPERATURE = float(os.environ.get('OTHER_LLM_TEMPERATURE', '0.2'))
 OTHER_LLM_MAX_TOKENS = int(os.environ.get('OTHER_LLM_MAX_TOKENS', '1000'))
