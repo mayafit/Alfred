@@ -16,20 +16,32 @@ pipeline {
         
         stage('Build') {
             steps {
-                sh 'dotnet build --configuration Release --no-restore'
+                sh 'dotnet build --configuration Release'
             }
         }
         
         stage('Test') {
             steps {
-                sh 'dotnet test --no-restore --verbosity normal'
+                sh 'dotnet test --configuration Release --no-build'
             }
         }
         
         stage('Pack') {
             steps {
-                sh 'dotnet pack --no-build --configuration Release'
+                sh 'dotnet pack --configuration Release --no-build --output ./packages'
             }
+        }
+        
+        stage('Publish') {
+            steps {
+                sh 'dotnet nuget push ./packages/*.nupkg --source ${NUGET_SOURCE} --api-key ${NUGET_API_KEY}'
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
         }
     }
 }

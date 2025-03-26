@@ -16,26 +16,44 @@ pipeline {
         
         stage('Build') {
             steps {
-                sh 'dotnet build --configuration Release --no-restore'
+                sh 'dotnet build --configuration Release'
             }
         }
         
         stage('Test') {
             steps {
-                sh 'dotnet test --no-restore --verbosity normal'
+                sh 'dotnet test --configuration Release --no-build'
             }
         }
         
         stage('Publish') {
             steps {
-                sh 'dotnet publish --no-build --configuration Release'
+                sh 'dotnet publish --configuration Release --no-build --output ./publish'
             }
         }
         
         stage('Docker Build') {
             steps {
-                sh 'docker build -t ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_NUMBER} .'
+                sh 'docker build -t ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG} .'
             }
+        }
+        
+        stage('Docker Push') {
+            steps {
+                sh 'docker push ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG}'
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh 'kubectl set image deployment/${SERVICE_NAME} ${SERVICE_NAME}=${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG}'
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
         }
     }
 }

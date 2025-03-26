@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:16'
+        }
+    }
     
     stages {
         stage('Checkout') {
@@ -34,8 +38,26 @@ pipeline {
         
         stage('Docker Build') {
             steps {
-                sh 'docker build -t ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_NUMBER} .'
+                sh 'docker build -t ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG} .'
             }
+        }
+        
+        stage('Docker Push') {
+            steps {
+                sh 'docker push ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG}'
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh 'kubectl set image deployment/${SERVICE_NAME} ${SERVICE_NAME}=${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG}'
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
         }
     }
 }

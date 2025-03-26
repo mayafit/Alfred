@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:16'
+        }
+    }
     
     stages {
         stage('Checkout') {
@@ -32,10 +36,26 @@ pipeline {
             }
         }
         
-        stage('Deploy') {
+        stage('Deploy to S3') {
             steps {
-                sh 'aws s3 sync ./build s3://${WEBSITE_BUCKET}/'
+                withAWS(region: '${AWS_REGION}', credentials: 'aws-credentials') {
+                    s3Upload(file: 'build', bucket: '${WEBSITE_BUCKET}', path: '${WEBSITE_PATH}')
+                }
             }
+        }
+        
+        stage('Invalidate CloudFront') {
+            steps {
+                withAWS(region: '${AWS_REGION}', credentials: 'aws-credentials') {
+                    sh 'aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION_ID} --paths "/*"'
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
         }
     }
 }
