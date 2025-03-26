@@ -166,18 +166,27 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="simulation-interval" class="form-label">Interval (seconds)</label>
+                                    <label for="simulation-interval" class="form-label">System Events Interval (seconds)</label>
                                     <input type="number" class="form-control" id="simulation-interval" min="5" value="30">
                                 </div>
                                 <div class="mb-3">
                                     <label for="simulation-events" class="form-label">Events per interval</label>
                                     <input type="number" class="form-control" id="simulation-events" min="1" max="10" value="3">
                                 </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="jira-events-toggle" checked>
+                                    <label class="form-check-label" for="jira-events-toggle">Enable Jira Webhook Simulation</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="jira-interval" class="form-label">Jira Webhook Interval (seconds)</label>
+                                    <input type="number" class="form-control" id="jira-interval" min="10" value="60">
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-primary" id="apply-simulation-config">Apply Configuration</button>
-                                    <button class="btn btn-info" id="trigger-simulation">Trigger Simulation Event</button>
+                                    <button class="btn btn-info" id="trigger-simulation">Trigger System Event</button>
+                                    <button class="btn btn-warning" id="trigger-jira-webhook">Trigger Jira Webhook</button>
                                 </div>
                             </div>
                         </div>
@@ -262,6 +271,14 @@
                     // Update configuration fields
                     document.getElementById('simulation-interval').value = data.interval;
                     document.getElementById('simulation-events').value = data.event_count;
+                    
+                    // Update Jira webhook simulation settings
+                    if ('jira_events_enabled' in data) {
+                        document.getElementById('jira-events-toggle').checked = data.jira_events_enabled;
+                    }
+                    if ('jira_interval' in data) {
+                        document.getElementById('jira-interval').value = data.jira_interval;
+                    }
                 });
                 
             // Add event listener for toggle switch
@@ -277,6 +294,11 @@
             // Add event listener for trigger simulation button
             document.getElementById('trigger-simulation').addEventListener('click', function() {
                 triggerSimulation();
+            });
+            
+            // Add event listener for trigger Jira webhook button
+            document.getElementById('trigger-jira-webhook').addEventListener('click', function() {
+                triggerJiraWebhook();
             });
         }
         
@@ -332,6 +354,8 @@
         function applySimulationConfig() {
             const interval = parseInt(document.getElementById('simulation-interval').value, 10);
             const eventCount = parseInt(document.getElementById('simulation-events').value, 10);
+            const jiraEventsEnabled = document.getElementById('jira-events-toggle').checked;
+            const jiraInterval = parseInt(document.getElementById('jira-interval').value, 10);
             
             fetch('/api/simulation/config', {
                 method: 'POST',
@@ -340,7 +364,9 @@
                 },
                 body: JSON.stringify({
                     interval: interval,
-                    event_count: eventCount
+                    event_count: eventCount,
+                    jira_events_enabled: jiraEventsEnabled,
+                    jira_interval: jiraInterval
                 })
             })
             .then(response => response.json())
@@ -508,6 +534,52 @@
                 refreshIndicator.classList.remove('bg-success');
                 refreshIndicator.classList.add('bg-info');
             }, 1000);
+        }
+        
+        function triggerJiraWebhook() {
+            fetch('/api/simulation/trigger/jira', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Jira webhook triggered:', data);
+                
+                // Show success indicator
+                const triggerButton = document.getElementById('trigger-jira-webhook');
+                const originalText = triggerButton.textContent;
+                triggerButton.textContent = '✓ Webhook Sent';
+                triggerButton.classList.add('btn-success');
+                triggerButton.classList.remove('btn-warning');
+                
+                setTimeout(() => {
+                    triggerButton.textContent = originalText;
+                    triggerButton.classList.add('btn-warning');
+                    triggerButton.classList.remove('btn-success');
+                }, 1500);
+                
+                // Force refresh events after a short delay to show new events
+                setTimeout(() => {
+                    fetch('/api/dashboard/events')
+                        .then(response => response.json())
+                        .then(data => updateEventLog(data));
+                }, 1000);
+            })
+            .catch(error => {
+                console.error('Error triggering Jira webhook:', error);
+                
+                // Show error indicator
+                const triggerButton = document.getElementById('trigger-jira-webhook');
+                const originalText = triggerButton.textContent;
+                triggerButton.textContent = '❌ Error';
+                triggerButton.classList.add('btn-danger');
+                triggerButton.classList.remove('btn-warning');
+                
+                setTimeout(() => {
+                    triggerButton.textContent = originalText;
+                    triggerButton.classList.add('btn-warning');
+                    triggerButton.classList.remove('btn-danger');
+                }, 1500);
+            });
         }
         
         function getBadgeClassForEventType(eventType) {
