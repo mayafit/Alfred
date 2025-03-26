@@ -89,8 +89,9 @@ task_processing_time = Histogram('task_processing_seconds', 'Time spent processi
 
 @app.route('/')
 def index():
-    """Root endpoint returning service status"""
-    return jsonify({'message': 'DevOps Automation Service'})
+    """Root endpoint that redirects to the task creation page"""
+    from flask import redirect, url_for
+    return redirect(url_for('task.task_page'))
 
 @app.route('/health')
 def health_check():
