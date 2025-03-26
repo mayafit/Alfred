@@ -28,9 +28,9 @@ def create_app():
         }
     }
     
-    # Initialize metrics
-    metrics = PrometheusMetrics(app)
-    metrics.info('app_info', 'Application info', version='1.0.0')
+    # Initialize metrics with a unique registry name to avoid collisions
+    metrics = PrometheusMetrics(app, registry_name='ci_agent_registry')
+    metrics.info('app_info', 'Application info', version='1.0.0', service='ci_agent')
     
     # Initialize blueprint and routes
     blueprint = Blueprint('ci_agent', __name__)
