@@ -1,8 +1,8 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:16'
-        }
+    agent any
+    
+    tools {
+        nodejs 'NodeJS 18'
     }
     
     stages {
@@ -12,19 +12,13 @@ pipeline {
             }
         }
         
-        stage('Install') {
+        stage('Install Dependencies') {
             steps {
                 sh 'npm ci'
             }
         }
         
-        stage('Lint') {
-            steps {
-                sh 'npm run lint'
-            }
-        }
-        
-        stage('Test') {
+        stage('Run Tests') {
             steps {
                 sh 'npm test'
             }
@@ -38,26 +32,44 @@ pipeline {
         
         stage('Docker Build') {
             steps {
-                sh 'docker build -t ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG} .'
+                sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .'
+                sh 'docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest'
             }
         }
         
-        stage('Docker Push') {
+        stage('Deploy to Staging') {
+            when {
+                branch 'develop'
+            }
             steps {
-                sh 'docker push ${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG}'
+                sh 'kubectl apply -f k8s/staging'
             }
         }
         
-        stage('Deploy') {
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
             steps {
-                sh 'kubectl set image deployment/${SERVICE_NAME} ${SERVICE_NAME}=${DOCKER_REGISTRY}/${SERVICE_NAME}:${BUILD_TAG}'
+                sh 'kubectl apply -f k8s/production'
             }
         }
     }
     
     post {
         always {
-            cleanWs()
+            junit '**/test-results.xml'
+        }
+        success {
+            archiveArtifacts artifacts: 'dist/**/*', fingerprint: true
+            slackSend channel: '#deployments',
+                color: 'good',
+                message: "The pipeline ${currentBuild.fullDisplayName} completed successfully."
+        }
+        failure {
+            slackSend channel: '#deployments',
+                color: 'danger',
+                message: "The pipeline ${currentBuild.fullDisplayName} failed."
         }
     }
 }
