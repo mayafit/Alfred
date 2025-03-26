@@ -248,9 +248,20 @@
                         <span class="event-timestamp text-muted">${event.timestamp}</span>
                         <span class="event-service badge bg-secondary">${event.service}</span>
                     </div>
-                    <div class="d-flex">
-                        <span class="event-type badge ${getBadgeClassForEventType(event.event_type)} me-2">${event.event_type}</span>
-                        <span class="event-description ${event.description.includes('Failed') ? 'text-danger' : ''}">${event.description}</span>
+                    <div class="d-flex flex-column">
+                        <div class="d-flex">
+                            <span class="event-type badge ${getBadgeClassForEventType(event.event_type)} me-2">${event.event_type}</span>
+                            <span class="event-description ${event.description.includes('Failed') ? 'text-danger' : ''}">${event.description}</span>
+                        </div>
+                        ${event.event_data && event.event_data.failure_details ? `
+                        <div class="ms-4 mt-1 failure-details">
+                            ${event.event_data.failure_details.map(detail => `
+                                <div class="small text-danger">
+                                    <strong>${detail.task_type}</strong>: ${detail.error}
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `).join('');

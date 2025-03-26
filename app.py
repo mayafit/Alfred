@@ -208,11 +208,33 @@ def test_analysis():
         logger.info(f"[test_analysis:162] Task processing complete. Success: {success_count}, Failed: {failed_count}")
         logger.debug(f"[test_analysis:163] Detailed results: {results}")
         
+        # Create detailed event data including failure reasons if any
+        event_data = {
+            "success_count": success_count,
+            "failed_count": failed_count,
+        }
+        
+        # Add failure details if there are any failures
+        if failed_count > 0:
+            failure_details = []
+            for failed_task in results.get('failed', []):
+                task_type = failed_task.get('task', {}).get('type', 'unknown')
+                error = failed_task.get('error', 'Unknown error')
+                failure_details.append({"task_type": task_type, "error": error})
+            
+            event_data["failure_details"] = failure_details
+            
+            # Enhance description with failure reasons
+            task_error_descriptions = [f"{detail['task_type']}: {detail['error']}" for detail in failure_details]
+            description = f"Task processing complete. Success: {success_count}, Failed: {failed_count}. Failures: {', '.join(task_error_descriptions)}"
+        else:
+            description = f"Task processing complete. Success: {success_count}, Failed: {failed_count}"
+        
         log_system_event(
             event_type="task_completed",
             service="main",
-            description=f"Task processing complete. Success: {success_count}, Failed: {failed_count}",
-            event_data={"success_count": success_count, "failed_count": failed_count}
+            description=description,
+            event_data=event_data
         )
 
         return jsonify({
@@ -355,17 +377,36 @@ def jira_webhook():
         failed_count = len(results['failed'])
         logger.info(f"Task processing complete. Success: {success_count}, Failed: {failed_count}")
         
+        # Create detailed event data including failure reasons if any
+        event_data = {
+            "issue_key": issue_key,
+            "success_count": success_count, 
+            "failed_count": failed_count,
+            "success_tasks": [s.get('task') for s in results.get('success', [])],
+        }
+        
+        # Add failure details if there are any failures
+        if failed_count > 0:
+            failure_details = []
+            for failed_task in results.get('failed', []):
+                task_type = failed_task.get('task', {}).get('type', 'unknown')
+                error = failed_task.get('error', 'Unknown error')
+                failure_details.append({"task_type": task_type, "error": error})
+            
+            event_data["failure_details"] = failure_details
+            event_data["failed_tasks"] = [f.get('task') for f in results.get('failed', [])]
+            
+            # Enhance description with failure reasons
+            task_error_descriptions = [f"{detail['task_type']}: {detail['error']}" for detail in failure_details]
+            description = f"Task processing complete for issue {issue_key}. Success: {success_count}, Failed: {failed_count}. Failures: {', '.join(task_error_descriptions)}"
+        else:
+            description = f"Task processing complete for issue {issue_key}. Success: {success_count}, Failed: {failed_count}"
+        
         log_system_event(
             event_type="task_completed",
             service="main",
-            description=f"Task processing complete for issue {issue_key}. Success: {success_count}, Failed: {failed_count}",
-            event_data={
-                "issue_key": issue_key,
-                "success_count": success_count, 
-                "failed_count": failed_count,
-                "success_tasks": [s.get('task') for s in results.get('success', [])],
-                "failed_tasks": [f.get('task') for f in results.get('failed', [])]
-            }
+            description=description,
+            event_data=event_data
         )
 
         status_message = f"Processed {success_count + failed_count} tasks:\n"
