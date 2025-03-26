@@ -3,6 +3,14 @@ import os
 # App settings
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-replace-in-production')
 
+# OpenAI configuration
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4o')
+OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE', '0.2'))
+OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS', '1000'))
+
+
 # API settings
 JIRA_API_TOKEN = os.environ.get('JIRA_API_TOKEN')
 JIRA_USERNAME = os.environ.get('JIRA_USERNAME')

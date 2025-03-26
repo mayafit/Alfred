@@ -51,7 +51,10 @@ Example valid output:
                         raise ValueError("OpenAI module not available")
                 
                 # Initialize client
-                self.client = openai_module.OpenAI(api_key=config.OPENAI_API_KEY)
+                self.client = openai_module.OpenAI(
+                    api_key=config.OPENAI_API_KEY,
+                    base_url=config.OPENAI_BASE_URL
+                )
                 logger.debug("Successfully initialized OpenAI client")
                 self.ai_available = True
                 
