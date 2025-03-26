@@ -106,8 +106,21 @@ def trigger_simulation():
             "message": "Simulation mode is disabled"
         }), 400
     
+    # Import utils for logging
+    from utils.logger import log_system_event
+    
     # Generate and log a simulated workflow
     events = generate_simulated_workflow()
+    
+    # Log each event with application context
+    with current_app.app_context():
+        for event in events:
+            log_system_event(
+                event_type=event["event_type"],
+                service=event["service"],
+                description=event["description"],
+                event_data=event["event_data"]
+            )
     
     return jsonify({
         "status": "success",
@@ -120,4 +133,6 @@ def register_routes(app):
     
     # Start simulation if enabled in config
     if config.SIMULATION_MODE:
-        start_simulation()
+        # Use app.app_context() to ensure database access works correctly
+        with app.app_context():
+            start_simulation()

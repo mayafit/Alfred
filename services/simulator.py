@@ -283,20 +283,19 @@ def simulate_cycle():
     logger.info("Running simulation cycle")
     
     try:
-        with db.session() as session:
-            # Generate and store task history
-            if random.random() > 0.7:  # 30% chance of new task history
-                tasks = generate_simulated_task_history(count=random.randint(1, 3))
-                for task in tasks:
-                    session.add(task)
-            
-            # Generate and store system metrics
-            metrics = generate_system_metrics()
-            for metric in metrics:
-                session.add(metric)
-            
-            # Commit the changes
-            session.commit()
+        # Generate and store task history
+        if random.random() > 0.7:  # 30% chance of new task history
+            tasks = generate_simulated_task_history(count=random.randint(1, 3))
+            for task in tasks:
+                db.session.add(task)
+        
+        # Generate and store system metrics
+        metrics = generate_system_metrics()
+        for metric in metrics:
+            db.session.add(metric)
+        
+        # Commit the changes
+        db.session.commit()
     except Exception as e:
         logger.error(f"Error in simulation - storing DB records: {str(e)}")
     
@@ -320,11 +319,16 @@ def simulation_loop():
     """Main simulation loop that runs in a separate thread"""
     global simulation_running
     
+    # Import app here to avoid circular imports
+    from app import app
+    
     logger.info("Starting simulation loop")
     
     while simulation_running:
         try:
-            simulate_cycle()
+            # Use app context for database operations
+            with app.app_context():
+                simulate_cycle()
             time.sleep(config.SIMULATION_INTERVAL)
         except Exception as e:
             logger.error(f"Error in simulation loop: {str(e)}")
