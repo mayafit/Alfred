@@ -9,10 +9,15 @@ import json
 import config
 from agents.deploy_agent.routes import register_routes
 from prometheus_client import REGISTRY, Collector
+from agents.deploy_agent.smol_deploy_agent import SmolDeployAgent
 
 # Create Blueprint first
 deploy_agent_bp = Blueprint('deploy_agent', __name__)
 logger = setup_agent_logger('deploy-agent')
+
+# Initialize the SmolDeployAgent
+# Using OpenAI for LLM capabilities with the OPENAI_API_KEY environment variable
+smol_deploy_agent = SmolDeployAgent(api_key=os.environ.get('OPENAI_API_KEY'))
 
 
 def create_app():
@@ -67,69 +72,100 @@ def validate_deploy_request(data):
         return False, "Missing parameters field"
 
     params = data['parameters']
-    required_fields = ['repository', 'service_ports', 'environment_variables']
+    required_fields = ['repository', 'namespace']
 
     for field in required_fields:
         if field not in params:
             return False, f"Missing required field: {field}"
 
-    if not isinstance(params['service_ports'], list):
+    # Optional validation for specific fields
+    if 'service_ports' in params and not isinstance(params['service_ports'], list):
         return False, "service_ports must be a list"
 
-    if not isinstance(params['environment_variables'], dict):
+    if 'environment_variables' in params and not isinstance(params['environment_variables'], dict):
         return False, "environment_variables must be a dictionary"
+        
+    if 'cluster_details' in params and not isinstance(params['cluster_details'], dict):
+        return False, "cluster_details must be a dictionary"
+        
+    if 'helm_values' in params and not (isinstance(params['helm_values'], dict) or 
+                                         isinstance(params['helm_values'], str)):
+        return False, "helm_values must be a dictionary or a string path to a values file"
 
     return True, None
 
 @deploy_agent_bp.route('/health')
 def health():
     """
-    Health check endpoint that also verifies access to templates and dependencies
+    Health check endpoint that also verifies access to required tools (helm, kubectl, git)
     """
     try:
-        # Check if template directory exists and contains required templates
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        required_templates = [
-            "csharp_library.groovy",
-            "aspnet_service.groovy",
-            "node_service.groovy",
-            "website.groovy"
-        ]
-
-        templates_exist = all(
-            os.path.exists(os.path.join(template_dir, template))
-            for template in required_templates
-        )
-
         # Check git command availability
         try:
-            subprocess.run(["git", "--version"], check=True, capture_output=True)
+            git_output = subprocess.check_output(["git", "--version"]).decode().strip()
             git_available = True
         except (subprocess.CalledProcessError, FileNotFoundError):
             git_available = False
-            logger.error("Git command not available")
+            git_output = "Git command not available"
+            logger.error(git_output)
 
-        if not templates_exist:
-            logger.error("Missing required Jenkins templates")
-            return jsonify({
-                "status": "unhealthy",
-                "service": "deploy-agent",
-                "error": "Missing required templates"
-            }), 500
+        # Check helm command availability
+        try:
+            helm_output = subprocess.check_output(["helm", "version"]).decode().strip()
+            helm_available = True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            helm_available = False
+            helm_output = "Helm command not available"
+            logger.error(helm_output)
+            
+        # Check kubectl command availability
+        try:
+            kubectl_output = subprocess.check_output(["kubectl", "version", "--client"]).decode().strip()
+            kubectl_available = True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            kubectl_available = False
+            kubectl_output = "Kubectl command not available"
+            logger.error(kubectl_output)
 
-        if not git_available:
-            return jsonify({
-                "status": "unhealthy",
-                "service": "deploy-agent",
-                "error": "Git command not available"
-            }), 500
+        # Check OpenAI API key
+        openai_key_available = os.environ.get('OPENAI_API_KEY') is not None
+
+        # Check if all required tools are available
+        all_available = git_available and helm_available and kubectl_available and openai_key_available
+        
+        if not all_available:
+            status_code = 500
+            status = "unhealthy"
+            
+            # Build error message
+            error_messages = []
+            if not git_available:
+                error_messages.append("Git command not available")
+            if not helm_available:
+                error_messages.append("Helm command not available")
+            if not kubectl_available:
+                error_messages.append("Kubectl command not available")
+            if not openai_key_available:
+                error_messages.append("OpenAI API key not set")
+                
+            error_message = "; ".join(error_messages)
+        else:
+            status_code = 200
+            status = "healthy"
+            error_message = None
 
         return jsonify({
-            "status": "healthy",
+            "status": status,
             "service": "deploy-agent",
-            "templates_available": True,
-            "git_available": True
-        })
+            "git_available": git_available,
+            "git_version": git_output if git_available else None,
+            "helm_available": helm_available,
+            "helm_version": helm_output if helm_available else None,
+            "kubectl_available": kubectl_available,
+            "kubectl_version": kubectl_output if kubectl_available else None,
+            "openai_key_available": openai_key_available,
+            "error": error_message
+        }), status_code
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return jsonify({
@@ -148,38 +184,48 @@ def execute():
                 "message": "No data provided"
             }), 400
 
-        # Validate request
-        is_valid, error_message = validate_deploy_request(data)
-        if not is_valid:
-            logger.error(f"Invalid request: {error_message}")
+        # New validation logic adapted for SmolDeployAgent
+        if 'parameters' not in data:
             return jsonify({
                 "status": "error",
-                "message": error_message
+                "message": "Missing parameters field"
             }), 400
 
-        repository = data['parameters']['repository']
-        namespace = data['parameters']['namespace']
+        params = data['parameters']
+        # Check for updated required fields for SmolDeployAgent
+        required_fields = ['repository', 'namespace']
+        missing_fields = [field for field in required_fields if field not in params]
+        
+        if missing_fields:
+            logger.error(f"Missing required fields: {', '.join(missing_fields)}")
+            return jsonify({
+                "status": "error",
+                "message": f"Missing required fields: {', '.join(missing_fields)}"
+            }), 400
+
+        # If 'cluster_details' is not provided, add an empty dict
+        if 'cluster_details' not in params:
+            params['cluster_details'] = {}
+            logger.warning("No cluster_details provided, using default local configuration")
+
+        repository = params['repository']
+        namespace = params['namespace']
 
         logger.info(f"Deploying {repository} to namespace {namespace}")
-
-        # Here we'd implement the actual deployment logic
-        # For now, we'll return a mock success response
-        response = {
-            "status": "success",
-            "message": "Deployment completed successfully",
-            "details": {
-                "repository": repository,
-                "namespace": namespace,
-                "deployed_version": "1.0.0",
-                "status": "Running"
-            }
-        }
-
-        logger.info(f"Successfully deployed {repository} to {namespace}")
-        return jsonify(response)
+        
+        # Use SmolDeployAgent to process the deployment
+        result = smol_deploy_agent.process_deployment_task(data)
+        
+        # Log the result
+        if result["status"] == "success":
+            logger.info(f"Successfully deployed {repository} to {namespace}")
+        else:
+            logger.error(f"Failed to deploy {repository} to {namespace}: {result.get('message', 'Unknown error')}")
+        
+        return jsonify(result)
 
     except subprocess.CalledProcessError as e:
-        error_msg = f"Git operation failed: {str(e)}"
+        error_msg = f"Command execution failed: {str(e)}"
         logger.error(error_msg)
         return jsonify({
             "status": "error",

@@ -21,11 +21,15 @@ class AgentRouter:
         if not isinstance(response, dict):
             return False
 
-        required_fields = ['status', 'message', 'details']
-        if not all(field in response for field in required_fields):
+        # 'status' and 'message' are required fields
+        if 'status' not in response or 'message' not in response:
             return False
 
-        if response['status'] not in ['success', 'error']:
+        # For backward compatibility, we make 'details' optional
+        # as some agents (like SmolDeployAgent) might include detailed information directly
+
+        # Status must be one of 'success', 'error', or 'warning'
+        if response['status'] not in ['success', 'error', 'warning']:
             return False
 
         return True
@@ -90,17 +94,33 @@ class AgentRouter:
             logger.debug(f"Task details: {task}")
 
             response = self.route_task(agent_type, task)
-            if response and response.get('status') == 'success':
+            if not response:
+                error_msg = 'Agent unavailable'
+                results['failed'].append({
+                    'task': task,
+                    'error': error_msg
+                })
+                logger.error(f"Failed to process {agent_type} task: {error_msg}")
+            elif response.get('status') == 'success':
                 results['success'].append({
                     'task': task,
                     'result': response
                 })
                 logger.info(f"Successfully completed {agent_type} task")
+            elif response.get('status') == 'warning':
+                # For warnings, we consider it a partial success but log the warning
+                results['success'].append({
+                    'task': task,
+                    'result': response,
+                    'warning': True
+                })
+                logger.warning(f"Completed {agent_type} task with warnings: {response.get('message')}")
             else:
-                error_msg = 'Agent execution failed' if response else 'Agent unavailable'
+                error_msg = f"Agent execution failed: {response.get('message', 'Unknown error')}"
                 results['failed'].append({
                     'task': task,
-                    'error': error_msg
+                    'error': error_msg,
+                    'details': response.get('details', {})
                 })
                 logger.error(f"Failed to process {agent_type} task: {error_msg}")
 
