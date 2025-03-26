@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from services.jira_service import JiraService
 from services.ai_service import AIService
 from services.agent_router import AgentRouter
+from services.task_validator import TaskValidator
 from utils.validators import validate_jira_webhook, validate_ai_response
 from utils.logger import logger, log_system_event
 import config
@@ -82,6 +83,7 @@ app.secret_key = config.SECRET_KEY
 jira_service = JiraService()
 ai_service = AIService()
 agent_router = AgentRouter()
+task_validator = TaskValidator()
 # SMS service has been removed as per user request
 
 # Define Prometheus metrics
@@ -330,6 +332,36 @@ def jira_webhook():
             
             jira_service.add_comment(issue_key, error_message)
             return jsonify({'status': 'error', 'message': error_message}), 400
+            
+        # Validate if tasks have all required details
+        validation_result = task_validator.validate_tasks(ai_response.get('tasks', []))
+        if not validation_result["is_valid"]:
+            logger.warning(f"Tasks for issue {issue_key} are missing required details")
+            
+            # Generate a detailed feedback message
+            feedback_message = "⚠️ Tasks are missing required details:\n\n"
+            feedback_message += task_validator.generate_feedback_message(validation_result)
+            feedback_message += "\nPlease update the description with the missing information and try again."
+            
+            # Log the validation failure
+            log_system_event(
+                event_type="warning",
+                service="main",
+                description=f"Incomplete task details for issue {issue_key}",
+                event_data={
+                    "issue_key": issue_key, 
+                    "validation_result": validation_result
+                }
+            )
+            
+            # Add a comment to the Jira issue
+            jira_service.add_comment(issue_key, feedback_message)
+            
+            return jsonify({
+                'status': 'error', 
+                'message': 'Tasks are missing required details',
+                'details': validation_result
+            }), 400
 
         if ai_response['status'] == 'error':
             # Check if this is a system error

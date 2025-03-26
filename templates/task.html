@@ -301,7 +301,29 @@
                             });
                     }, 3000);
                 } else {
-                    alert(`Error: ${data.message}`);
+                    // Check if it's a validation error (missing task details)
+                    if (data.validation_result && data.feedback_message) {
+                        // Create a detailed validation error alert
+                        const validationAlert = document.createElement('div');
+                        validationAlert.className = 'alert alert-warning alert-dismissible fade show mt-3';
+                        validationAlert.innerHTML = `
+                            <h5 class="alert-heading">Task Validation Failed</h5>
+                            <p>${data.message}</p>
+                            <hr>
+                            <div class="mb-2">
+                                <strong>Missing Details:</strong>
+                            </div>
+                            <pre class="bg-light p-2 rounded">${data.feedback_message}</pre>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        
+                        // Insert the alert after the form
+                        const taskForm = document.getElementById('taskForm');
+                        taskForm.insertAdjacentElement('afterend', validationAlert);
+                    } else {
+                        // Regular error
+                        alert(`Error: ${data.message}`);
+                    }
                 }
             })
             .catch(error => {

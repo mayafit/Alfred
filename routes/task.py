@@ -11,11 +11,13 @@ from utils.logger import log_system_event
 from services.ai_service import AIService
 from services.agent_router import AgentRouter
 from services.jira_service import JiraService
+from services.task_validator import TaskValidator
 
 task_bp = Blueprint('task', __name__)
 ai_service = AIService()
 agent_router = AgentRouter()
 jira_service = JiraService()
+task_validator = TaskValidator()
 
 @task_bp.route('/', methods=['GET'])
 def task_page():
@@ -66,6 +68,30 @@ def create_task():
             return jsonify({
                 "status": "error", 
                 "message": "Failed to parse task description. Please try again with more details."
+            }), 400
+            
+        # Validate if the tasks have all required details
+        validation_result = task_validator.validate_tasks(parsed_data.get('tasks', []))
+        if not validation_result["is_valid"]:
+            # Log the validation failure
+            log_system_event(
+                event_type="warning",
+                service="main",
+                description="Incomplete task details provided",
+                event_data={
+                    "validation_result": validation_result,
+                    "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                }
+            )
+            
+            # Generate a detailed feedback message
+            feedback_message = task_validator.generate_feedback_message(validation_result)
+            
+            return jsonify({
+                "status": "error", 
+                "message": "Tasks are missing required details",
+                "validation_result": validation_result,
+                "feedback_message": feedback_message
             }), 400
             
         # Create a Jira ticket if Jira is configured
