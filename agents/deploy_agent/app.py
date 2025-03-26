@@ -2,27 +2,17 @@ import sys
 import os
 from flask import Blueprint, request, jsonify, Flask
 from agents.utils.logger import setup_agent_logger
-
 from prometheus_flask_exporter import PrometheusMetrics
 import subprocess
 import logging
 import json
 import config
 from agents.deploy_agent.routes import register_routes
+from prometheus_client import REGISTRY, Collector
 
 # Create Blueprint first
 deploy_agent_bp = Blueprint('deploy_agent', __name__)
 logger = setup_agent_logger('deploy-agent')
-
-# Define all routes before creating the app
-@deploy_agent_bp.route('/health')
-def health():
-    return jsonify({"status": "healthy"}), 200
-
-@deploy_agent_bp.route('/execute', methods=['POST'])
-def execute():
-    # ...existing execute route code...
-    pass
 
 
 def create_app():
@@ -43,17 +33,24 @@ def create_app():
         }
     }
     
-    # Initialize metrics
-    metrics = PrometheusMetrics(app)
-    metrics.info('app_info', 'Application info', version='1.0.0')
+    # Initialize metrics with a unique registry name to avoid collisions
+    try:
+        # Try to unregister the app_info metric if it exists to avoid duplicates
+        for collector in list(REGISTRY._collector_to_names.keys()):
+            if 'app_info' in REGISTRY._collector_to_names.get(collector, []):
+                REGISTRY.unregister(collector)
+                logger.info("Unregistered existing app_info metric")
+                break
+                
+        metrics = PrometheusMetrics(app, registry_name='deploy_agent_registry')
+        metrics.info('deploy_agent_info', 'Application info', version='1.0.0', service='deploy_agent')
+    except Exception as e:
+        logger.warning(f"Prometheus metrics initialization error: {str(e)}")
+        # Create metrics without info to avoid errors
+        metrics = PrometheusMetrics(app, registry_name='deploy_agent_registry')
     
-    # Initialize blueprint and routes
-    blueprint = Blueprint('deploy_agent', __name__)
-   # repo_analyzer = RepoAnalyzer(config.LLAMA_SERVER_URL)
-   # register_routes(blueprint, repo_analyzer)
-    
-    # Register blueprint
-    app.register_blueprint(blueprint)
+    # Register the deploy_agent_bp blueprint
+    app.register_blueprint(deploy_agent_bp)
     
     return app
 

@@ -7,6 +7,7 @@ import subprocess
 import logging
 import json
 import config
+from prometheus_client import REGISTRY, Collector
 
 # Set up logger
 logger = setup_agent_logger('helm-agent')
@@ -181,8 +182,21 @@ def create_app():
     }
     
     # Initialize metrics with registry_name to avoid collisions
-    metrics = PrometheusMetrics(app, registry_name='helm_agent_registry')
-    metrics.info('app_info', 'Application info', version='1.0.0', service='helm_agent')
+    # Create a separate registry to avoid collisions with the main app
+    try:
+        # Try to unregister the app_info metric if it exists to avoid duplicates
+        for collector in list(REGISTRY._collector_to_names.keys()):
+            if 'app_info' in REGISTRY._collector_to_names.get(collector, []):
+                REGISTRY.unregister(collector)
+                logger.info("Unregistered existing app_info metric")
+                break
+                
+        metrics = PrometheusMetrics(app, registry_name='helm_agent_registry')
+        metrics.info('helm_agent_info', 'Application info', version='1.0.0', service='helm_agent')
+    except Exception as e:
+        logger.warning(f"Prometheus metrics initialization error: {str(e)}")
+        # Create metrics without info to avoid errors
+        metrics = PrometheusMetrics(app, registry_name='helm_agent_registry')
     
     # Create and register the blueprint
     helm_agent_bp = Blueprint('helm_agent', __name__)
