@@ -233,6 +233,71 @@ This will start:
 - Helm Agent on port 9002
 - Deploy Agent on port 9003
 
+### Using Simulation Mode
+
+The system includes a simulation mode for testing and demonstration purposes without requiring actual Jira integration or external repositories.
+
+#### Enabling Simulation Mode
+
+1. Set the following environment variables in your `.env` file:
+```env
+# Simulation Mode Configuration
+SIMULATION_MODE=True
+SIMULATION_INTERVAL=30          # Seconds between simulation cycles
+SIMULATION_EVENT_COUNT=3        # Number of events per cycle
+SIMULATION_JIRA_EVENTS=True     # Enable Jira webhook simulation
+SIMULATION_JIRA_INTERVAL=60     # Seconds between Jira webhook events
+```
+
+2. Or enable via the dashboard controls:
+   - Navigate to `http://localhost:5000/dashboard`
+   - In the "Simulation Controls" section, toggle "Enable Simulation"
+   - Configure simulation parameters as needed
+   - Click "Apply Configuration"
+
+#### Simulation Features
+
+Simulation mode provides:
+- Automated generation of system events (task received, AI analysis, agent triggered)
+- Simulated task history records
+- Simulated system metrics
+- Realistic Jira webhook payloads with detailed task descriptions
+
+#### Manual Simulation Triggers
+
+You can manually trigger simulation events through the dashboard or API:
+
+**Dashboard Controls:**
+- Click "Trigger System Event" to generate a full workflow cycle
+- Click "Trigger Jira Webhook" to send a simulated Jira webhook event
+
+**API Endpoints:**
+```bash
+# Trigger system events
+curl -X POST http://localhost:5000/api/simulation/trigger
+
+# Trigger a simulated Jira webhook
+curl -X POST http://localhost:5000/api/simulation/trigger/jira
+
+# Get simulation status
+curl http://localhost:5000/api/simulation/status
+
+# Configure simulation
+curl -X POST http://localhost:5000/api/simulation/config \
+-H "Content-Type: application/json" \
+-d '{
+  "interval": 30,
+  "event_count": 3,
+  "jira_events_enabled": true,
+  "jira_interval": 60
+}'
+
+# Toggle simulation mode
+curl -X POST http://localhost:5000/api/simulation/toggle \
+-H "Content-Type: application/json" \
+-d '{"enabled": true}'
+```
+
 ### Testing with Postman
 
 #### Testing CI Agent
