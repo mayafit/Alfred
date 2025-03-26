@@ -8,9 +8,13 @@ import logging
 import json
 import config
 from prometheus_client import REGISTRY, Collector
+from agents.helm_agent.smol_helm_agent import SmolHelmAgent
 
 # Set up logger
 logger = setup_agent_logger('helm-agent')
+
+# Initialize the SmolHelmAgent
+smol_helm_agent = SmolHelmAgent(api_key=os.environ.get('OPENAI_API_KEY'))
 
 def validate_helm_request(data):
     """
@@ -23,17 +27,21 @@ def validate_helm_request(data):
         return False, "Missing parameters field"
 
     params = data['parameters']
-    required_fields = ['repository', 'service_ports', 'environment_variables']
+    required_fields = ['repository', 'app_name', 'namespace']
 
     for field in required_fields:
         if field not in params:
             return False, f"Missing required field: {field}"
 
-    if not isinstance(params['service_ports'], list):
+    # Optional field validations
+    if 'service_ports' in params and not isinstance(params['service_ports'], list):
         return False, "service_ports must be a list"
 
-    if not isinstance(params['environment_variables'], dict):
+    if 'environment_variables' in params and not isinstance(params['environment_variables'], dict):
         return False, "environment_variables must be a dictionary"
+        
+    if 'branch' in params and not isinstance(params['branch'], str):
+        return False, "branch must be a string"
 
     return True, None
 
@@ -44,52 +52,62 @@ def register_routes_for_app(blueprint):
     @blueprint.route('/health')
     def health():
         """
-        Health check endpoint that also verifies access to templates and dependencies
+        Health check endpoint that also verifies access to required tools (helm, git)
         """
         try:
-            # Check if template directory exists and contains required templates
-            template_dir = os.path.join(os.path.dirname(__file__), "templates")
-            required_templates = [
-                "csharp_library.groovy",
-                "aspnet_service.groovy",
-                "node_service.groovy",
-                "website.groovy"
-            ]
-
-            templates_exist = all(
-                os.path.exists(os.path.join(template_dir, template))
-                for template in required_templates
-            )
-
             # Check git command availability
             try:
-                subprocess.run(["git", "--version"], check=True, capture_output=True)
+                git_output = subprocess.check_output(["git", "--version"]).decode().strip()
                 git_available = True
             except (subprocess.CalledProcessError, FileNotFoundError):
                 git_available = False
-                logger.error("Git command not available")
+                git_output = "Git command not available"
+                logger.error(git_output)
 
-            if not templates_exist:
-                logger.error("Missing required Jenkins templates")
-                return jsonify({
-                    "status": "unhealthy",
-                    "service": "helm-agent",
-                    "error": "Missing required templates"
-                }), 500
+            # Check helm command availability
+            try:
+                helm_output = subprocess.check_output(["helm", "version"]).decode().strip()
+                helm_available = True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                helm_available = False
+                helm_output = "Helm command not available"
+                logger.error(helm_output)
+                
+            # Check OpenAI API key
+            openai_key_available = os.environ.get('OPENAI_API_KEY') is not None
 
-            if not git_available:
-                return jsonify({
-                    "status": "unhealthy",
-                    "service": "helm-agent",
-                    "error": "Git command not available"
-                }), 500
+            # Check if all required tools are available
+            all_available = git_available and helm_available and openai_key_available
+            
+            if not all_available:
+                status_code = 500
+                status = "unhealthy"
+                
+                # Build error message
+                error_messages = []
+                if not git_available:
+                    error_messages.append("Git command not available")
+                if not helm_available:
+                    error_messages.append("Helm command not available")
+                if not openai_key_available:
+                    error_messages.append("OpenAI API key not set")
+                    
+                error_message = "; ".join(error_messages)
+            else:
+                status_code = 200
+                status = "healthy"
+                error_message = None
 
             return jsonify({
-                "status": "healthy",
+                "status": status,
                 "service": "helm-agent",
-                "templates_available": True,
-                "git_available": True
-            })
+                "git_available": git_available,
+                "git_version": git_output if git_available else None,
+                "helm_available": helm_available,
+                "helm_version": helm_output if helm_available else None,
+                "openai_key_available": openai_key_available,
+                "error": error_message
+            }), status_code
         except Exception as e:
             logger.error(f"Health check failed: {str(e)}")
             return jsonify({
@@ -117,32 +135,35 @@ def register_routes_for_app(blueprint):
                     "message": error_message
                 }), 400
 
-            repository = data['parameters']['repository']
-            service_ports = data['parameters']['service_ports']
-            env_vars = data['parameters']['environment_variables']
+            # Extract parameters
+            params = data['parameters']
+            repository = params['repository']
+            app_name = params['app_name']
+            namespace = params['namespace']
+            
+            # Log optional parameters if present
+            if 'service_ports' in params:
+                logger.debug(f"Service ports: {params['service_ports']}")
+            if 'environment_variables' in params:
+                logger.debug(f"Environment variables: {params['environment_variables']}")
+            if 'branch' in params:
+                logger.debug(f"Branch: {params['branch']}")
 
-            logger.info(f"Creating Helm chart for {repository}")
-            logger.debug(f"Service ports: {service_ports}")
-            logger.debug(f"Environment variables: {env_vars}")
-
-            # Here we'd implement the actual Helm chart creation
-            # For now, we'll return a mock success response
-            response = {
-                "status": "success",
-                "message": "Helm chart created successfully",
-                "details": {
-                    "repository": repository,
-                    "chart_name": repository.split('/')[-1],
-                    "service_ports": service_ports,
-                    "environment_variables": env_vars
-                }
-            }
-
-            logger.info(f"Successfully created Helm chart for {repository}")
-            return jsonify(response)
+            logger.info(f"Creating Helm chart for {repository} as {app_name} in namespace {namespace}")
+            
+            # Process the task using SmolHelmAgent
+            result = smol_helm_agent.process_helm_task(data)
+            
+            # Log the result
+            if result["status"] == "success":
+                logger.info(f"Successfully created Helm chart for {repository}")
+            else:
+                logger.error(f"Failed to create Helm chart for {repository}: {result.get('message', 'Unknown error')}")
+            
+            return jsonify(result)
 
         except subprocess.CalledProcessError as e:
-            error_msg = f"Git operation failed: {str(e)}"
+            error_msg = f"Command execution failed: {str(e)}"
             logger.error(error_msg)
             return jsonify({
                 "status": "error",
