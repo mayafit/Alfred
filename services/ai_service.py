@@ -1,14 +1,25 @@
 from typing import Dict, Any, Optional
 import json
 import requests
-from openai import OpenAI
+import importlib
 from utils.logger import logger
 import config
 import re
 import os
 
+# Try to import OpenAI dynamically
+openai_module = None
+try:
+    openai_module = importlib.import_module('openai')
+    logger.debug("Successfully imported OpenAI module")
+except ImportError:
+    logger.warning("OpenAI module not available, will try dynamic import when needed")
+
 class AIService:
     def __init__(self):
+        # Get reference to the global module
+        global openai_module
+        
         self.system_prompt = """You are a DevOps task analyzer. Your role is to analyze descriptions and extract structured DevOps tasks.
 
 For repository analysis, respond with JSON in this format:
@@ -30,7 +41,17 @@ Example valid output:
             self.provider = config.LLM_PROVIDER.lower()
             
             if self.provider == "openai" and config.OPENAI_API_KEY:
-                self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+                # Ensure OpenAI module is available
+                if openai_module is None:
+                    try:
+                        openai_module = importlib.import_module('openai')
+                        logger.debug("Successfully imported OpenAI module")
+                    except ImportError:
+                        logger.error("OpenAI package not installed")
+                        raise ValueError("OpenAI module not available")
+                
+                # Initialize client
+                self.client = openai_module.OpenAI(api_key=config.OPENAI_API_KEY)
                 logger.debug("Successfully initialized OpenAI client")
                 self.ai_available = True
                 
@@ -49,7 +70,17 @@ Example valid output:
             else:
                 # Try fallbacks if preferred provider isn't available
                 if config.OPENAI_API_KEY:
-                    self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+                    # Ensure OpenAI module is available for fallback
+                    if openai_module is None:
+                        try:
+                            openai_module = importlib.import_module('openai')
+                            logger.debug("Successfully imported OpenAI module for fallback")
+                        except ImportError:
+                            logger.error("OpenAI package not installed for fallback")
+                            raise ValueError("OpenAI module not available")
+                    
+                    # Initialize client for fallback
+                    self.client = openai_module.OpenAI(api_key=config.OPENAI_API_KEY)
                     self.provider = "openai"
                     logger.debug("Falling back to OpenAI client")
                     self.ai_available = True
