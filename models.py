@@ -38,3 +38,21 @@ class SystemMetrics(db.Model):
             'response_time': self.response_time,
             'error_count': self.error_count
         }
+
+class SystemEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    event_type = db.Column(db.String(50), nullable=False)  # 'task_received', 'ai_analysis', 'agent_triggered', etc.
+    service = db.Column(db.String(50), nullable=False)  # 'main', 'ci_agent', 'helm_agent', 'deploy_agent'
+    description = db.Column(db.Text, nullable=False)  # Detailed description of the event
+    event_data = db.Column(db.JSON)  # Additional data related to the event
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'timestamp': self.timestamp.isoformat(),
+            'event_type': self.event_type,
+            'service': self.service,
+            'description': self.description,
+            'event_data': self.event_data
+        }
