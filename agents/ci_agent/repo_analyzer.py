@@ -4,9 +4,24 @@ import tempfile
 import requests
 import logging
 import re
-import git
-from typing import Optional, Dict, Any
 import json
+import subprocess
+from typing import Optional, Dict, Any, Tuple
+
+# Set up module-level logger
+logger = logging.getLogger(__name__)
+
+# Conditionally import optional dependencies
+git = None
+openai = None
+
+try:
+    import git
+except ImportError:
+    logger.warning("GitPython not installed, falling back to subprocess for git operations")
+    
+# Note: OpenAI is imported dynamically in the _analyze_with_openai method to avoid issues
+# if it's not available
 
 class RepoAnalyzer:
     def __init__(self, llm_url: str, work_dir: str = "/tmp/repos"):
@@ -42,9 +57,40 @@ class RepoAnalyzer:
             if os.path.exists(repo_path):
                 shutil.rmtree(repo_path)
             
-            # Clone the repository using GitPython
-            self.logger.info(f"Cloning repository {repo_url} (branch: {branch}) to {repo_path}")
-            git.Repo.clone_from(repo_url, repo_path, branch=branch)
+            # Check if we can use GitPython or need to fallback to subprocess
+            use_git_python = False
+            
+            # Try to import GitPython dynamically if needed
+            if git is None:
+                try:
+                    import importlib
+                    git_module = importlib.import_module('git')
+                    use_git_python = True
+                    self.logger.info("Successfully imported GitPython library")
+                except ImportError:
+                    use_git_python = False
+                    self.logger.warning("GitPython not installed, using subprocess for git operations")
+            else:
+                use_git_python = True
+                
+            if not use_git_python:
+                # Fallback to subprocess if GitPython is not available
+                self.logger.info(f"Cloning repository {repo_url} (branch: {branch}) to {repo_path} using subprocess")
+                os.makedirs(repo_path, exist_ok=True)
+                subprocess.run(
+                    ["git", "clone", "-b", branch, repo_url, repo_path], 
+                    check=True,
+                    capture_output=True
+                )
+            else:
+                # Clone the repository using GitPython
+                self.logger.info(f"Cloning repository {repo_url} (branch: {branch}) to {repo_path}")
+                if git is not None:
+                    # Use the module-level import
+                    git.Repo.clone_from(repo_url, repo_path, branch=branch)
+                else:
+                    # Use the dynamically imported module
+                    git_module.Repo.clone_from(repo_url, repo_path, branch=branch)
             
             self.logger.info(f"Repository cloned successfully to {repo_path}")
             return repo_path
@@ -103,7 +149,7 @@ class RepoAnalyzer:
                 "error": str(e)
             }
     
-    def _detect_project_type(self, file_list: list) -> tuple:
+    def _detect_project_type(self, file_list: list) -> Tuple[str, float, list]:
         """
         Uses rule-based approach to detect project type from file list
         Returns (project_type, confidence, build_steps)
@@ -160,7 +206,7 @@ class RepoAnalyzer:
         # Unknown project type
         return "unknown", 0.1, []
             
-    def _analyze_with_llm(self, file_list: list) -> tuple:
+    def _analyze_with_llm(self, file_list: list) -> Tuple[str, float, list]:
         """
         Uses LLM to analyze the repository and determine project type
         Returns (project_type, confidence, build_steps)
@@ -220,8 +266,18 @@ Response:"""
         Uses OpenAI to analyze the repository
         """
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key)
+            # Dynamically import OpenAI to avoid module-level dependencies
+            import importlib
+            try:
+                # Try to import or reload the OpenAI module
+                openai_module = importlib.import_module('openai')
+                self.logger.info("Successfully imported OpenAI library")
+            except ImportError:
+                self.logger.error("OpenAI library not installed. Cannot use OpenAI for repository analysis.")
+                return None
+            
+            # Create the OpenAI client with API key
+            client = openai_module.OpenAI(api_key=self.api_key)
             
             self.logger.debug("Sending analysis request to OpenAI")
             response = client.chat.completions.create(
