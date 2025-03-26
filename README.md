@@ -9,6 +9,11 @@ This service automates DevOps tasks by:
 2. Routing tasks to specialized AI agents (CI, Helm, Deploy) for execution
 3. Providing feedback on task execution results
 
+### Specialized AI Agents
+- **CI Agent**: Analyzes repositories and creates appropriate CI/CD pipelines
+- **Helm Agent**: Uses SmolHelmAgent with OpenAI to analyze repositories and generate Helm charts
+- **Deploy Agent**: Handles Kubernetes deployments with intelligent command generation
+
 ### Supported AI Providers
 - OpenAI (GPT-4o) - Default provider for high-quality task analysis
 - Google Gemini - Alternative provider with strong performance
@@ -247,6 +252,12 @@ SIMULATION_INTERVAL=30          # Seconds between simulation cycles
 SIMULATION_EVENT_COUNT=3        # Number of events per cycle
 SIMULATION_JIRA_EVENTS=True     # Enable Jira webhook simulation
 SIMULATION_JIRA_INTERVAL=60     # Seconds between Jira webhook events
+
+# Docker Image Versions
+ALFRED_DEVOPS_IMAGE_VERSION=latest
+ALFRED_CI_AGENT_IMAGE_VERSION=latest
+ALFRED_HELM_AGENT_IMAGE_VERSION=latest
+ALFRED_DEPLOY_AGENT_IMAGE_VERSION=latest
 ```
 
 2. Or enable via the dashboard controls:
@@ -317,14 +328,19 @@ Send a POST request to `http://0.0.0.0:9002/execute` with payload:
 {
   "parameters": {
     "repository": "git@github.com:org/service.git",
-    "service_ports": [80, 443],
-    "environment_variables": {
-      "NODE_ENV": "production",
-      "PORT": "8080"
-    }
+    "app_name": "my-service",
+    "namespace": "production",
+    "branch": "main"
   }
 }
 ```
+
+The SmolHelmAgent will:
+1. Clone the repository
+2. Analyze the repository content (Dockerfiles, docker-compose.yml, language-specific files)
+3. Extract information like port mappings, environment variables, volumes, dependencies
+4. Generate appropriate Helm chart files using OpenAI GPT-4o
+5. Return the analysis results and generated Helm chart
 
 #### Testing Deploy Agent
 Send a POST request to `http://0.0.0.0:9003/execute` with payload:

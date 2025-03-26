@@ -3,7 +3,7 @@ version: '3.8'
 
 services:
   devops_service:
-    image: mayafit/alfred-devops-service:latest
+    image: mayafit/alfred-devops-service:${ALFRED_DEVOPS_IMAGE_VERSION:-latest}
     ports:
       - "5000:5000"
     environment:
@@ -66,7 +66,7 @@ services:
         condition: service_healthy
 
   ci_agent:
-    image: mayafit/alfred-ci-agent:latest
+    image: mayafit/alfred-ci-agent:${ALFRED_CI_AGENT_IMAGE_VERSION:-latest}
     ports:
       - "9001:9001"
     volumes:
@@ -75,6 +75,7 @@ services:
       - PYTHONPATH=/app
       - DATABASE_URL=${ENV_DATABASE_URL}
       - POSTGRES_SSL=${ENV_POSTGRES_SSL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
       interval: 30s
@@ -88,7 +89,7 @@ services:
         condition: service_healthy
 
   helm_agent:
-    image: mayafit/alfred-helm-agent:latest
+    image: mayafit/alfred-helm-agent:${ALFRED_HELM_AGENT_IMAGE_VERSION:-latest}
     ports:
       - "9002:9002"
     volumes:
@@ -97,8 +98,9 @@ services:
       - PYTHONPATH=/app
       - DATABASE_URL=${ENV_DATABASE_URL}
       - POSTGRES_SSL=${ENV_POSTGRES_SSL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -110,7 +112,7 @@ services:
         condition: service_healthy
 
   deploy_agent:
-    image: mayafit/alfred-deploy-agent:latest
+    image: mayafit/alfred-deploy-agent:${ALFRED_DEPLOY_AGENT_IMAGE_VERSION:-latest}
     ports:
       - "9003:9003"
     volumes:
@@ -119,8 +121,9 @@ services:
       - PYTHONPATH=/app
       - DATABASE_URL=${ENV_DATABASE_URL}
       - POSTGRES_SSL=${ENV_POSTGRES_SSL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
