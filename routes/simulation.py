@@ -176,6 +176,6 @@ def trigger_jira_webhook():
 
 def register_routes(app):
     """Register the simulation routes with the Flask app"""
-    app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
+    app.register_blueprint(simulation_bp, url_prefix='/dashboard/api/simulation')
     
     # Simulation is disabled by default and must be enabled explicitly through the UI

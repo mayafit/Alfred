@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from models import TaskHistory, SystemMetrics, SystemEvent
 import config
 
-dashboard = Blueprint('dashboard', __name__)
+dashboard = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
 @dashboard.route('/')
 def show_dashboard():

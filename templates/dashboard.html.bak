@@ -274,7 +274,7 @@
         
         function initSimulationControls() {
             // Get simulation status
-            fetch('/dashboard/api/simulation/status')
+            fetch('/api/simulation/status')
                 .then(response => response.json())
                 .then(data => {
                     // Update toggle switch
@@ -322,7 +322,7 @@
         }
         
         function toggleSimulation(enabled) {
-            fetch('/dashboard/api/simulation/toggle', {
+            fetch('/api/simulation/toggle', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -376,7 +376,7 @@
             const jiraEventsEnabled = document.getElementById('jira-events-toggle').checked;
             const jiraInterval = parseInt(document.getElementById('jira-interval').value, 10);
             
-            fetch('/dashboard/api/simulation/config', {
+            fetch('/api/simulation/config', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -424,7 +424,7 @@
         }
         
         function triggerSimulation() {
-            fetch('/dashboard/api/simulation/trigger', {
+            fetch('/api/simulation/trigger', {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -446,7 +446,7 @@
                 
                 // Force refresh events after a short delay to show new events
                 setTimeout(() => {
-                    fetch('/dashboard/api/dashboard/events')
+                    fetch('/api/dashboard/events')
                         .then(response => response.json())
                         .then(data => updateEventLog(data));
                 }, 1000);
@@ -556,7 +556,7 @@
         }
         
         function triggerJiraWebhook() {
-            fetch('/dashboard/api/simulation/trigger/jira', {
+            fetch('/api/simulation/trigger/jira', {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -578,7 +578,7 @@
                 
                 // Force refresh events after a short delay to show new events
                 setTimeout(() => {
-                    fetch('/dashboard/api/dashboard/events')
+                    fetch('/api/dashboard/events')
                         .then(response => response.json())
                         .then(data => updateEventLog(data));
                 }, 1000);
