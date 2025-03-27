@@ -61,6 +61,7 @@ METRICS_PORT = int(os.environ.get('METRICS_PORT', 8000))
 # Feature flags
 ENABLE_JIRA_INTEGRATION = os.environ.get('ENABLE_JIRA_INTEGRATION', 'False').lower() in ('true', '1', 't')
 ENABLE_AUTHENTICATION = os.environ.get('ENABLE_AUTHENTICATION', 'False').lower() in ('true', '1', 't')
+DISABLE_TASK_VALIDATION = os.environ.get('DISABLE_TASK_VALIDATION', 'False').lower() in ('true', '1', 't')
 
 # Simulation mode - disabled by default
 SIMULATION_MODE = os.environ.get('SIMULATION_MODE', 'False').lower() in ('true', '1', 't')

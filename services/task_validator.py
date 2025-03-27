@@ -2,6 +2,7 @@
 Task validator service for validating tasks and providing detailed feedback.
 """
 from typing import Dict, Any, List, Tuple
+import config
 
 class TaskValidator:
     """
@@ -93,6 +94,23 @@ class TaskValidator:
         Returns:
             Dictionary with validation results and missing requirements
         """
+        # If validation is disabled, return all tasks as valid
+        if config.DISABLE_TASK_VALIDATION:
+            results = []
+            for i, task in enumerate(tasks):
+                results.append({
+                    "task_index": i,
+                    "is_valid": True,
+                    "missing_required": [],
+                    "missing_suggested": [],
+                    "task": task
+                })
+            return {
+                "is_valid": True,
+                "task_results": results
+            }
+            
+        # Otherwise, perform normal validation
         results = []
         is_valid = True
         

@@ -70,9 +70,9 @@ def create_task():
                 "message": "Failed to parse task description. Please try again with more details."
             }), 400
             
-        # Validate if the tasks have all required details
+        # Validate if the tasks have all required details (unless validation is disabled)
         validation_result = task_validator.validate_tasks(parsed_data.get('tasks', []))
-        if not validation_result["is_valid"]:
+        if not validation_result["is_valid"] and not config.DISABLE_TASK_VALIDATION:
             # Log the validation failure
             log_system_event(
                 event_type="warning",
@@ -93,6 +93,17 @@ def create_task():
                 "validation_result": validation_result,
                 "feedback_message": feedback_message
             }), 400
+        elif not validation_result["is_valid"] and config.DISABLE_TASK_VALIDATION:
+            # Log that we're proceeding despite validation failures (because validation is disabled)
+            log_system_event(
+                event_type="warning",
+                service="main",
+                description="Proceeding with incomplete task details (validation disabled)",
+                event_data={
+                    "validation_result": validation_result,
+                    "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                }
+            )
             
         # Create a Jira ticket if Jira is configured
         jira_key = None
