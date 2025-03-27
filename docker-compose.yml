@@ -13,6 +13,8 @@ services:
       - JIRA_URL=${JIRA_URL}
       - JIRA_EMAIL=${JIRA_EMAIL}
       - JIRA_API_TOKEN=${JIRA_API_TOKEN}
+      - JIRA_PROJECT_KEY=${JIRA_PROJECT_KEY}
+      - JIRA_PROJECT_NAME=${JIRA_PROJECT_NAME}
       # LLM Provider Selection
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
       # OpenAI Configuration
