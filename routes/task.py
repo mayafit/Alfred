@@ -22,7 +22,7 @@ task_validator = TaskValidator()
 @task_bp.route('/', methods=['GET'])
 def task_page():
     """Render the task creation page"""
-    return render_template('task.html')
+    return render_template('task.html', config=config)
 
 @task_bp.route('/create', methods=['POST'])
 def create_task():
@@ -32,7 +32,7 @@ def create_task():
     try:
         # Get form data
         prompt = request.form.get('prompt', '')
-        project = request.form.get('project', 'Go to Market Sample')
+        project = request.form.get('project', config.JIRA_PROJECT_NAME)
         
         if not prompt:
             return jsonify({
@@ -111,9 +111,9 @@ def create_task():
                 if len(summary) < len(prompt.split('\n')[0]):
                     summary += "..."
                 
-                # Always use the default project key "GTMS" for Jira tickets
+                # Use the configured project key for Jira tickets
                 jira_key = jira_service.create_issue(
-                    project_key="GTMS",
+                    project_key=config.JIRA_PROJECT_KEY,
                     summary=summary,
                     description=prompt,
                     issue_type="Task",

@@ -51,7 +51,8 @@ def show_dashboard():
         active_tasks=[task.to_dict() for task in active_tasks],
         task_history=[task.to_dict() for task in task_history],
         system_events=[event.to_dict() for event in system_events],
-        simulation_enabled=simulation_enabled
+        simulation_enabled=simulation_enabled,
+        config=config
     )
 
 @dashboard.route('/api/dashboard/metrics')

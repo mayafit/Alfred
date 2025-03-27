@@ -26,6 +26,8 @@ DEPLOY_AGENT_URL = os.environ.get('DEPLOY_AGENT_URL', 'http://localhost:9003')
 JIRA_URL = os.environ.get('JIRA_URL', 'https://your-domain.atlassian.net')
 JIRA_USERNAME = os.environ.get('JIRA_USERNAME', '')
 JIRA_API_TOKEN = os.environ.get('JIRA_API_TOKEN', '')
+JIRA_PROJECT_KEY = os.environ.get('JIRA_PROJECT_KEY', 'GTMS')  # Default project key for Jira ticket creation
+JIRA_PROJECT_NAME = os.environ.get('JIRA_PROJECT_NAME', 'Go to Market Sample')  # Default project name
 
 # AI providers (Primary provider is the first available in this order)
 # Options: 'openai', 'gemini', 'other_llm'

@@ -443,7 +443,8 @@ def generate_simulated_jira_webhook():
     """Generate a simulated Jira webhook payload"""
     repo = generate_random_repo()
     repo_name = repo.split('/')[-1]
-    issue_key = f"DEVOPS-{random.randint(100, 999)}"
+    # Use the configured project key from config instead of hardcoded "DEVOPS"
+    issue_key = f"{config.JIRA_PROJECT_KEY}-{random.randint(100, 999)}"
     
     # Generate a random task description for the repository
     task_description = random.choice(TASK_DESCRIPTIONS).format(repo=repo_name)
