@@ -409,48 +409,11 @@
                 } else {
                     // Check if it's a validation error (missing task details)
                     if (data.validation_result && data.feedback_message) {
-                        // Create a modal for detailed validation feedback
-                        const validationModal = document.createElement('div');
-                        validationModal.className = 'modal fade';
-                        validationModal.id = 'validationModal';
-                        validationModal.setAttribute('tabindex', '-1');
-                        validationModal.setAttribute('aria-labelledby', 'validationModalLabel');
-                        validationModal.setAttribute('aria-hidden', 'true');
+                        // Skip showing the validation modal - just log it to console
+                        console.log('Task validation skipped (disabled):', data.validation_result);
                         
-                        validationModal.innerHTML = `
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content">
-                                    <div class="modal-header bg-warning">
-                                        <h5 class="modal-title" id="validationModalLabel">Task Validation Failed</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <p>${data.message}</p>
-                                        <hr>
-                                        <div class="mb-2">
-                                            <strong>Missing Details:</strong>
-                                        </div>
-                                        <pre class="bg-light p-2 rounded">${data.feedback_message}</pre>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        
-                        document.body.appendChild(validationModal);
-                        
-                        const modal = new bootstrap.Modal(validationModal);
-                        modal.show();
-                        
-                        // Clean up modal when hidden
-                        validationModal.addEventListener('hidden.bs.modal', function() {
-                            validationModal.remove();
-                        });
-                        
-                        // Also show a toast alert
-                        showToast('Task validation failed. Please provide more details.', 'warning');
+                        // Show a simple toast alert instead
+                        showToast('Processing task despite missing details (validation disabled)', 'info');
                     } else {
                         // Regular error
                         showToast(`Error: ${data.message}`, 'error');
